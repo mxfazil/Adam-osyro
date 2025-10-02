@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Confirm Business Card Details</title>
+    <title>Business Card Scanner</title>
     <style>
         * {
             margin: 0;
@@ -12,35 +12,116 @@
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: #f5f5f5;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             padding: 20px;
+            min-height: 100vh;
         }
         .container {
-            max-width: 600px;
+            max-width: 800px;
             margin: 0 auto;
             background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        .content {
             padding: 30px;
         }
-        h1 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 24px;
-        }
-        .subtitle {
-            color: #666;
-            margin-bottom: 30px;
-            font-size: 14px;
-        }
-        .info-box {
-            background: #e7f3ff;
-            border-left: 4px solid #007bff;
-            padding: 15px;
+        .tabs {
+            display: flex;
+            gap: 10px;
             margin-bottom: 25px;
-            border-radius: 4px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .tab {
+            padding: 12px 20px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            color: #666;
             font-size: 14px;
-            color: #004085;
+            font-weight: 500;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        .tab:hover {
+            color: #667eea;
+        }
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .ocr-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        .upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: white;
+        }
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .camera-section {
+            text-align: center;
+        }
+        #video {
+            width: 100%;
+            max-width: 100%;
+            border-radius: 8px;
+            background: #000;
+            margin-bottom: 15px;
+            display: none;
+        }
+        #video.active {
+            display: block;
+        }
+        .camera-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .form-section {
+            margin-top: 25px;
         }
         .form-group {
             margin-bottom: 20px;
@@ -48,77 +129,108 @@
         label {
             display: block;
             margin-bottom: 6px;
-            color: #555;
+            color: #333;
             font-weight: 500;
             font-size: 14px;
+        }
+        label .required {
+            color: #dc3545;
         }
         input[type="text"],
         input[type="email"] {
             width: 100%;
             padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
             font-size: 14px;
-            transition: border-color 0.3s;
+            transition: all 0.3s;
         }
         input[type="text"]:focus,
         input[type="email"]:focus {
             outline: none;
-            border-color: #007bff;
-            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
         }
-        input[type="text"]:disabled,
-        input[type="email"]:disabled {
-            background: #f5f5f5;
-            cursor: not-allowed;
-        }
-        .empty-field {
-            background: #fff3cd;
-            border-color: #ffc107;
-        }
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 30px;
+        input.auto-filled {
+            background: #e8f5e9;
+            border-color: #4caf50;
         }
         button {
-            flex: 1;
             padding: 12px 24px;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 14px;
             font-weight: 500;
-            transition: background 0.3s;
+            transition: all 0.3s;
         }
         .btn-primary {
-            background: #007bff;
+            background: #667eea;
             color: white;
         }
         .btn-primary:hover {
-            background: #0056b3;
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102,126,234,0.3);
         }
         .btn-primary:disabled {
             background: #ccc;
             cursor: not-allowed;
+            transform: none;
         }
         .btn-secondary {
             background: #6c757d;
             color: white;
         }
         .btn-secondary:hover {
-            background: #545b62;
+            background: #5a6268;
         }
-        .field-hint {
-            font-size: 12px;
-            color: #999;
-            margin-top: 4px;
+        .btn-success {
+            background: #28a745;
+            color: white;
         }
-        .validation-error {
-            color: #dc3545;
-            font-size: 12px;
-            margin-top: 4px;
+        .btn-success:hover {
+            background: #218838;
+        }
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+        }
+        .button-group button {
+            flex: 1;
+        }
+        .alert {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
             display: none;
+        }
+        .alert.show {
+            display: block;
+        }
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
         }
         .loading-overlay {
             display: none;
@@ -127,7 +239,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.7);
             z-index: 1000;
             justify-content: center;
             align-items: center;
@@ -137,134 +249,339 @@
         }
         .loading-content {
             background: white;
-            padding: 30px;
-            border-radius: 8px;
+            padding: 40px;
+            border-radius: 12px;
             text-align: center;
         }
         .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #007bff;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
+            width: 50px;
+            height: 50px;
             animation: spin 1s linear infinite;
-            margin: 0 auto 15px;
+            margin: 0 auto 20px;
         }
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .validation-error {
+            color: #dc3545;
+            font-size: 12px;
+            margin-top: 4px;
+            display: none;
+        }
+        .field-hint {
+            font-size: 12px;
+            color: #28a745;
+            margin-top: 4px;
+        }
+        canvas {
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>✓ Review Extracted Details</h1>
-        <p class="subtitle">Please review and correct any information before saving</p>
-
-        <div class="info-box">
-            ℹ️ The fields below were automatically extracted from the business card. Please verify the information is correct before saving.
+        <div class="header">
+            <h1>📇 Business Card Scanner</h1>
+            <p>Enter details manually or scan a business card to auto-fill</p>
         </div>
 
-        <form id="confirmForm" action="/save" method="post">
-            <div class="form-group">
-                <label for="name">Name *</label>
-                <input 
-                    type="text" 
-                    name="name" 
-                    id="name" 
-                    value="{{ fields.get('name', '') }}" 
-                    required
-                    {% if not fields.get('name') %}class="empty-field"{% endif %}
-                >
-                <div class="validation-error" id="name-error">Name is required</div>
-                {% if not fields.get('name') %}
-                <div class="field-hint">⚠️ This field was not detected, please enter manually</div>
-                {% endif %}
+        <div class="content">
+            <!-- Alert Messages -->
+            <div id="alertSuccess" class="alert alert-success">
+                ✓ Business card saved successfully!
+            </div>
+            <div id="alertError" class="alert alert-error">
+                ✗ <span id="errorMessage"></span>
             </div>
 
-            <div class="form-group">
-                <label for="email">Email</label>
-                <input 
-                    type="email" 
-                    name="email" 
-                    id="email" 
-                    value="{{ fields.get('email', '') }}"
-                    {% if not fields.get('email') %}class="empty-field"{% endif %}
-                >
-                <div class="validation-error" id="email-error">Please enter a valid email</div>
-                {% if not fields.get('email') %}
-                <div class="field-hint">⚠️ This field was not detected, please enter manually</div>
-                {% endif %}
+            <!-- OCR Options -->
+            <div class="ocr-section">
+                <h3 style="margin-bottom: 15px; color: #333;">Quick Fill with OCR</h3>
+                
+                <div class="tabs">
+                    <button class="tab active" data-tab="upload">📤 Upload Image</button>
+                    <button class="tab" data-tab="camera">📷 Use Camera</button>
+                </div>
+
+                <!-- Upload Tab -->
+                <div id="upload-tab" class="tab-content active">
+                    <div class="upload-area" id="uploadArea">
+                        <div class="upload-icon">📄</div>
+                        <p style="margin-bottom: 10px; color: #666;">Click to upload or drag & drop</p>
+                        <p style="font-size: 12px; color: #999;">Supported: JPG, PNG, JPEG</p>
+                        <input type="file" id="fileInput" accept="image/*">
+                    </div>
+                </div>
+
+                <!-- Camera Tab -->
+                <div id="camera-tab" class="tab-content">
+                    <div class="camera-section">
+                        <video id="video" autoplay playsinline></video>
+                        <div class="camera-controls">
+                            <button id="startCamera" class="btn-primary">📷 Start Camera</button>
+                            <button id="capture" class="btn-success" style="display: none;">📸 Capture</button>
+                            <button id="stopCamera" class="btn-danger" style="display: none;">⏹️ Stop</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div class="form-group">
-                <label for="phone">Phone Number</label>
-                <input 
-                    type="text" 
-                    name="phone" 
-                    id="phone" 
-                    value="{{ fields.get('phone', '') }}"
-                    {% if not fields.get('phone') %}class="empty-field"{% endif %}
-                >
-                {% if not fields.get('phone') %}
-                <div class="field-hint">⚠️ This field was not detected, please enter manually</div>
-                {% endif %}
-            </div>
+            <!-- Form Section -->
+            <div class="form-section">
+                <h3 style="margin-bottom: 20px; color: #333;">Business Card Details</h3>
+                
+                <form id="businessCardForm">
+                    <div class="form-group">
+                        <label for="name">Name <span class="required">*</span></label>
+                        <input type="text" id="name" name="name" required>
+                        <div class="validation-error" id="name-error">Name is required</div>
+                        <div class="field-hint" id="name-hint" style="display: none;">✓ Auto-filled from image</div>
+                    </div>
 
-            <div class="form-group">
-                <label for="company">Company</label>
-                <input 
-                    type="text" 
-                    name="company" 
-                    id="company" 
-                    value="{{ fields.get('company', '') }}"
-                    {% if not fields.get('company') %}class="empty-field"{% endif %}
-                >
-                {% if not fields.get('company') %}
-                <div class="field-hint">⚠️ This field was not detected, please enter manually</div>
-                {% endif %}
-            </div>
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email">
+                        <div class="validation-error" id="email-error">Please enter a valid email</div>
+                        <div class="field-hint" id="email-hint" style="display: none;">✓ Auto-filled from image</div>
+                    </div>
 
-            <div class="button-group">
-                <button type="button" class="btn-secondary" onclick="window.location.href='/'">
-                    ← Cancel
-                </button>
-                <button type="submit" class="btn-primary" id="submitBtn">
-                    💾 Save to Database
-                </button>
+                    <div class="form-group">
+                        <label for="phone">Phone Number</label>
+                        <input type="text" id="phone" name="phone">
+                        <div class="field-hint" id="phone-hint" style="display: none;">✓ Auto-filled from image</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="company">Company</label>
+                        <input type="text" id="company" name="company">
+                        <div class="field-hint" id="company-hint" style="display: none;">✓ Auto-filled from image</div>
+                    </div>
+
+                    <div class="button-group">
+                        <button type="button" class="btn-secondary" onclick="resetForm()">🔄 Clear Form</button>
+                        <button type="submit" class="btn-primary">💾 Save to Database</button>
+                    </div>
+                </form>
             </div>
-        </form>
+        </div>
     </div>
 
+    <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-content">
             <div class="spinner"></div>
-            <p>Saving business card...</p>
+            <p id="loadingText">Processing image...</p>
         </div>
     </div>
 
+    <canvas id="canvas"></canvas>
+
     <script>
-        const form = document.getElementById('confirmForm');
-        const nameInput = document.getElementById('name');
-        const emailInput = document.getElementById('email');
-        const submitBtn = document.getElementById('submitBtn');
-        const loadingOverlay = document.getElementById('loadingOverlay');
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+                
+                // Update active tab
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                // Update active content
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                document.getElementById(`${tabName}-tab`).classList.add('active');
+            });
+        });
 
-        // Form validation
-        form.addEventListener('submit', (e) => {
+        // Upload area drag and drop
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                processImage(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                processImage(e.target.files[0]);
+            }
+        });
+
+        // Camera functionality
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const startCameraBtn = document.getElementById('startCamera');
+        const captureBtn = document.getElementById('capture');
+        const stopCameraBtn = document.getElementById('stopCamera');
+
+        let stream = null;
+
+        startCameraBtn.addEventListener('click', async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    } 
+                });
+                
+                video.srcObject = stream;
+                video.classList.add('active');
+                startCameraBtn.style.display = 'none';
+                captureBtn.style.display = 'inline-block';
+                stopCameraBtn.style.display = 'inline-block';
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                showAlert('Failed to access camera. Please check permissions.', 'error');
+            }
+        });
+
+        captureBtn.addEventListener('click', () => {
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            canvas.toBlob((blob) => {
+                processCameraImage(blob);
+                stopCamera();
+            }, 'image/jpeg', 0.8);
+        });
+
+        stopCameraBtn.addEventListener('click', stopCamera);
+
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                stream = null;
+            }
+            video.classList.remove('active');
+            startCameraBtn.style.display = 'inline-block';
+            captureBtn.style.display = 'none';
+            stopCameraBtn.style.display = 'none';
+        }
+
+        // Process uploaded image
+        async function processImage(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            showLoading('Extracting information...');
+            
+            try {
+                const response = await fetch('/extract', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    fillFormFields(result.fields);
+                    showAlert('Information extracted successfully!', 'success');
+                } else {
+                    showAlert(result.error || 'Failed to extract information', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showAlert('Failed to process image', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Process camera capture
+        async function processCameraImage(blob) {
+            const formData = new FormData();
+            formData.append('file', blob, 'capture.jpg');
+            
+            showLoading('Extracting information...');
+            
+            try {
+                const response = await fetch('/extract', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    fillFormFields(result.fields);
+                    showAlert('Information extracted successfully!', 'success');
+                } else {
+                    showAlert(result.error || 'Failed to extract information', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showAlert('Failed to process image', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Fill form fields
+        function fillFormFields(fields) {
+            const fieldNames = ['name', 'email', 'phone', 'company'];
+            
+            fieldNames.forEach(field => {
+                const input = document.getElementById(field);
+                const hint = document.getElementById(`${field}-hint`);
+                
+                if (fields[field] && fields[field].trim()) {
+                    input.value = fields[field];
+                    input.classList.add('auto-filled');
+                    if (hint) {
+                        hint.style.display = 'block';
+                    }
+                }
+            });
+        }
+
+        // Form submission
+        const form = document.getElementById('businessCardForm');
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Validate
+            const nameInput = document.getElementById('name');
+            const emailInput = document.getElementById('email');
             let isValid = true;
-
-            // Validate name (required)
+            
+            // Validate name
             if (!nameInput.value.trim()) {
                 document.getElementById('name-error').style.display = 'block';
                 nameInput.style.borderColor = '#dc3545';
                 isValid = false;
             } else {
                 document.getElementById('name-error').style.display = 'none';
-                nameInput.style.borderColor = '#ddd';
+                nameInput.style.borderColor = '#e0e0e0';
             }
-
-            // Validate email (if provided)
+            
+            // Validate email if provided
             if (emailInput.value.trim()) {
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
                 if (!emailRegex.test(emailInput.value.trim())) {
@@ -273,48 +590,113 @@
                     isValid = false;
                 } else {
                     document.getElementById('email-error').style.display = 'none';
-                    emailInput.style.borderColor = '#ddd';
+                    emailInput.style.borderColor = '#e0e0e0';
                 }
             }
-
-            if (!isValid) {
-                e.preventDefault();
-                return false;
+            
+            if (!isValid) return;
+            
+            // Submit form
+            const formData = new FormData(form);
+            
+            showLoading('Saving to database...');
+            
+            try {
+                const response = await fetch('/save', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Business card saved successfully!', 'success');
+                    setTimeout(() => {
+                        resetForm();
+                    }, 2000);
+                } else {
+                    showAlert(result.error || 'Failed to save', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showAlert('Failed to save business card', 'error');
+            } finally {
+                hideLoading();
             }
-
-            // Show loading overlay
-            loadingOverlay.classList.add('active');
-            submitBtn.disabled = true;
         });
-
-        // Real-time validation feedback
-        nameInput.addEventListener('input', () => {
-            if (nameInput.value.trim()) {
-                nameInput.classList.remove('empty-field');
+        
+        // Reset form
+        function resetForm() {
+            form.reset();
+            document.querySelectorAll('input').forEach(input => {
+                input.classList.remove('auto-filled');
+            });
+            document.querySelectorAll('.field-hint').forEach(hint => {
+                hint.style.display = 'none';
+            });
+            document.querySelectorAll('.validation-error').forEach(error => {
+                error.style.display = 'none';
+            });
+            hideAlert();
+        }
+        
+        // Show alert
+        function showAlert(message, type) {
+            hideAlert();
+            
+            const alert = type === 'success' ? document.getElementById('alertSuccess') : document.getElementById('alertError');
+            
+            if (type === 'error') {
+                document.getElementById('errorMessage').textContent = message;
+            } else {
+                alert.textContent = '✓ ' + message;
+            }
+            
+            alert.classList.add('show');
+            
+            if (type === 'success') {
+                setTimeout(hideAlert, 5000);
+            }
+        }
+        
+        // Hide alert
+        function hideAlert() {
+            document.querySelectorAll('.alert').forEach(alert => {
+                alert.classList.remove('show');
+            });
+        }
+        
+        // Show loading
+        function showLoading(text) {
+            document.getElementById('loadingText').textContent = text;
+            document.getElementById('loadingOverlay').classList.add('active');
+        }
+        
+        // Hide loading
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('active');
+        }
+        
+        // Real-time validation
+        document.getElementById('name').addEventListener('input', function() {
+            if (this.value.trim()) {
                 document.getElementById('name-error').style.display = 'none';
-                nameInput.style.borderColor = '#ddd';
+                this.style.borderColor = '#e0e0e0';
             }
         });
-
-        emailInput.addEventListener('input', () => {
-            if (emailInput.value.trim()) {
-                emailInput.classList.remove('empty-field');
+        
+        document.getElementById('email').addEventListener('input', function() {
+            if (this.value.trim()) {
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (emailRegex.test(emailInput.value.trim())) {
+                if (emailRegex.test(this.value.trim())) {
                     document.getElementById('email-error').style.display = 'none';
-                    emailInput.style.borderColor = '#ddd';
+                    this.style.borderColor = '#e0e0e0';
                 }
             }
         });
-
-        // Auto-focus first empty field
-        window.addEventListener('load', () => {
-            if (!nameInput.value.trim()) {
-                nameInput.focus();
-            } else if (!emailInput.value.trim()) {
-                emailInput.focus();
-            }
-        });
+        
+        // Clean up camera on page unload
+        window.addEventListener('beforeunload', stopCamera);
     </script>
 </body>
 </html>

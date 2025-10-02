@@ -131,10 +131,8 @@ If a field is not found, use an empty string."""
         
         # Adjust for Azure OpenAI format if needed
         if "azure.com" in LLAMA_API_URL:
-            # Azure OpenAI might require the model/deployment name in the payload
             payload["model"] = LLAMA_DEPLOYMENT_NAME
         else:
-            # Standard OpenAI format
             payload["model"] = "Llama-3.2-11B-Vision-Instruct"
         
         logger.info("Sending request to Llama API...")
@@ -148,10 +146,6 @@ If a field is not found, use an empty string."""
             timeout=30
         )
         
-        # Log the full request for debugging
-        logger.info(f"Request headers: {headers}")
-        logger.info(f"Request payload: {payload}")
-        
         response.raise_for_status()
         
         result = response.json()
@@ -160,7 +154,6 @@ If a field is not found, use an empty string."""
         logger.info(f"Raw API response: {content}")
         
         # Try to parse JSON from the response
-        # Sometimes the model wraps JSON in code blocks
         content = content.strip()
         if content.startswith("```json"):
             content = content[7:]
@@ -187,12 +180,10 @@ If a field is not found, use an empty string."""
         logger.error(f"API request error: {e}")
         if hasattr(e, 'response') and e.response is not None:
             logger.error(f"Response status code: {e.response.status_code}")
-            logger.error(f"Response headers: {e.response.headers}")
             logger.error(f"Response content: {e.response.text}")
         raise HTTPException(status_code=503, detail="Failed to connect to OCR service")
     except json.JSONDecodeError as e:
         logger.error(f"JSON parsing error: {e}, Content: {content}")
-        # Return empty fields if parsing fails
         return {"name": "", "email": "", "phone": "", "company": ""}
     except Exception as e:
         logger.error(f"Unexpected error in extract_fields_with_llama: {e}")
@@ -203,24 +194,23 @@ If a field is not found, use an empty string."""
 # -----------------------------
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    """Display upload/capture page"""
-    return templates.TemplateResponse("upload.html", {"request": request})
+    """Display combined form with upload/capture options"""
+    return templates.TemplateResponse("form.html", {"request": request})
 
-@app.post("/extract", response_class=HTMLResponse)
+@app.post("/extract", response_class=JSONResponse)
 async def extract_card(
-    request: Request,
     file: Optional[UploadFile] = File(None),
     camera_image: Optional[str] = Form(None)
 ):
     """
     Extract business card information from uploaded file or camera capture
+    Returns JSON with extracted fields
     """
     try:
         image = None
         
         if file:
             logger.info(f"Processing uploaded file: {file.filename}")
-            # Validate file type
             if not file.content_type.startswith('image/'):
                 raise HTTPException(status_code=400, detail="File must be an image")
             
@@ -228,7 +218,6 @@ async def extract_card(
             
         elif camera_image:
             logger.info("Processing camera capture")
-            # Remove data URL prefix if present
             if "," in camera_image:
                 image_data = base64.b64decode(camera_image.split(",")[1])
             else:
@@ -240,16 +229,16 @@ async def extract_card(
         # Extract fields using Llama
         fields = extract_fields_with_llama(image)
         
-        return templates.TemplateResponse(
-            "form.html",
-            {"request": request, "fields": fields}
-        )
+        return JSONResponse({"success": True, "fields": fields})
         
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error in extract_card: {e}")
-        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+        return JSONResponse(
+            {"success": False, "error": str(e)},
+            status_code=500
+        )
 
 @app.post("/save")
 async def save_card(
@@ -265,7 +254,6 @@ async def save_card(
         if not supabase:
             raise HTTPException(status_code=503, detail="Database connection not available")
         
-        # Basic validation
         if not name.strip():
             raise HTTPException(status_code=400, detail="Name is required")
         
@@ -280,7 +268,7 @@ async def save_card(
         result = supabase.table("business_cards").insert(data).execute()
         logger.info(f"Successfully saved card: {result}")
         
-        return RedirectResponse("/?success=true", status_code=303)
+        return JSONResponse({"success": True, "message": "Business card saved successfully"})
         
     except HTTPException:
         raise
