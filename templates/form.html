@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirm Business Card Details</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin-bottom: 25px;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #004085;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            color: #555;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        input[type="text"],
+        input[type="email"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        input[type="text"]:focus,
+        input[type="email"]:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+        }
+        input[type="text"]:disabled,
+        input[type="email"]:disabled {
+            background: #f5f5f5;
+            cursor: not-allowed;
+        }
+        .empty-field {
+            background: #fff3cd;
+            border-color: #ffc107;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+        }
+        button {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+        .field-hint {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+        }
+        .validation-error {
+            color: #dc3545;
+            font-size: 12px;
+            margin-top: 4px;
+            display: none;
+        }
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .loading-overlay.active {
+            display: flex;
+        }
+        .loading-content {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✓ Review Extracted Details</h1>
+        <p class="subtitle">Please review and correct any information before saving</p>
+
+        <div class="info-box">
+            ℹ️ The fields below were automatically extracted from the business card. Please verify the information is correct before saving.
+        </div>
+
+        <form id="confirmForm" action="/save" method="post">
+            <div class="form-group">
+                <label for="name">Name *</label>
+                <input 
+                    type="text" 
+                    name="name" 
+                    id="name" 
+                    value="{{ fields.get('name', '') }}" 
+                    required
+                    {% if not fields.get('name') %}class="empty-field"{% endif %}
+                >
+                <div class="validation-error" id="name-error">Name is required</div>
+                {% if not fields.get('name') %}
+                <div class="field-hint">⚠️ This field was not detected, please enter manually</div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input 
+                    type="email" 
+                    name="email" 
+                    id="email" 
+                    value="{{ fields.get('email', '') }}"
+                    {% if not fields.get('email') %}class="empty-field"{% endif %}
+                >
+                <div class="validation-error" id="email-error">Please enter a valid email</div>
+                {% if not fields.get('email') %}
+                <div class="field-hint">⚠️ This field was not detected, please enter manually</div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="phone">Phone Number</label>
+                <input 
+                    type="text" 
+                    name="phone" 
+                    id="phone" 
+                    value="{{ fields.get('phone', '') }}"
+                    {% if not fields.get('phone') %}class="empty-field"{% endif %}
+                >
+                {% if not fields.get('phone') %}
+                <div class="field-hint">⚠️ This field was not detected, please enter manually</div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="company">Company</label>
+                <input 
+                    type="text" 
+                    name="company" 
+                    id="company" 
+                    value="{{ fields.get('company', '') }}"
+                    {% if not fields.get('company') %}class="empty-field"{% endif %}
+                >
+                {% if not fields.get('company') %}
+                <div class="field-hint">⚠️ This field was not detected, please enter manually</div>
+                {% endif %}
+            </div>
+
+            <div class="button-group">
+                <button type="button" class="btn-secondary" onclick="window.location.href='/'">
+                    ← Cancel
+                </button>
+                <button type="submit" class="btn-primary" id="submitBtn">
+                    💾 Save to Database
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p>Saving business card...</p>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('confirmForm');
+        const nameInput = document.getElementById('name');
+        const emailInput = document.getElementById('email');
+        const submitBtn = document.getElementById('submitBtn');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+
+        // Form validation
+        form.addEventListener('submit', (e) => {
+            let isValid = true;
+
+            // Validate name (required)
+            if (!nameInput.value.trim()) {
+                document.getElementById('name-error').style.display = 'block';
+                nameInput.style.borderColor = '#dc3545';
+                isValid = false;
+            } else {
+                document.getElementById('name-error').style.display = 'none';
+                nameInput.style.borderColor = '#ddd';
+            }
+
+            // Validate email (if provided)
+            if (emailInput.value.trim()) {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(emailInput.value.trim())) {
+                    document.getElementById('email-error').style.display = 'block';
+                    emailInput.style.borderColor = '#dc3545';
+                    isValid = false;
+                } else {
+                    document.getElementById('email-error').style.display = 'none';
+                    emailInput.style.borderColor = '#ddd';
+                }
+            }
+
+            if (!isValid) {
+                e.preventDefault();
+                return false;
+            }
+
+            // Show loading overlay
+            loadingOverlay.classList.add('active');
+            submitBtn.disabled = true;
+        });
+
+        // Real-time validation feedback
+        nameInput.addEventListener('input', () => {
+            if (nameInput.value.trim()) {
+                nameInput.classList.remove('empty-field');
+                document.getElementById('name-error').style.display = 'none';
+                nameInput.style.borderColor = '#ddd';
+            }
+        });
+
+        emailInput.addEventListener('input', () => {
+            if (emailInput.value.trim()) {
+                emailInput.classList.remove('empty-field');
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (emailRegex.test(emailInput.value.trim())) {
+                    document.getElementById('email-error').style.display = 'none';
+                    emailInput.style.borderColor = '#ddd';
+                }
+            }
+        });
+
+        // Auto-focus first empty field
+        window.addEventListener('load', () => {
+            if (!nameInput.value.trim()) {
+                nameInput.focus();
+            } else if (!emailInput.value.trim()) {
+                emailInput.focus();
+            }
+        });
+    </script>
+</body>
+</html>
