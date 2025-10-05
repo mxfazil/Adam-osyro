@@ -1,6 +1,6 @@
 """
 Business Card OCR Application with REST API
-Combines web interface and REST API endpoints
+Combines web interface and REST API endpoints with auto-capture feature
 """
 
 import requests
@@ -69,7 +69,7 @@ else:
 # -----------------------------
 app = FastAPI(
     title="Business Card OCR API",
-    description="Extract and manage business card information using AI-powered OCR",
+    description="Extract and manage business card information using AI-powered OCR with auto-capture",
     version="1.0.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc"
@@ -298,7 +298,7 @@ async def extract_card(
 ):
     """
     Extract business card information from uploaded file or camera capture
-    Used by the web interface
+    Used by the web interface (including auto-capture)
     """
     try:
         image = None
@@ -310,7 +310,7 @@ async def extract_card(
             image = Image.open(file.file)
             
         elif camera_image:
-            logger.info("Processing camera capture")
+            logger.info("Processing camera capture (auto or manual)")
             if "," in camera_image:
                 image_data = base64.b64decode(camera_image.split(",")[1])
             else:
@@ -719,7 +719,7 @@ async def health_check():
 @app.on_event("startup")
 async def startup_event():
     logger.info("=" * 50)
-    logger.info("Starting Business Card OCR Application with API")
+    logger.info("Starting Business Card OCR Application with Auto-Capture API")
     logger.info("=" * 50)
     logger.info(f"Web Interface: http://127.0.0.1:8000/")
     logger.info(f"API Documentation: http://127.0.0.1:8000/api/docs")

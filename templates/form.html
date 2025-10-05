@@ -104,21 +104,124 @@
         .camera-section {
             text-align: center;
         }
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto 15px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+        }
         #video {
             width: 100%;
-            max-width: 100%;
+            display: block;
             border-radius: 8px;
-            background: #000;
-            margin-bottom: 15px;
+        }
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+        .focus-frame {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 60%;
+            border: 3px solid rgba(102, 126, 234, 0.8);
+            border-radius: 12px;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+        }
+        .focus-corners {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #667eea;
+        }
+        .focus-corners.top-left {
+            top: -3px;
+            left: -3px;
+            border-right: none;
+            border-bottom: none;
+        }
+        .focus-corners.top-right {
+            top: -3px;
+            right: -3px;
+            border-left: none;
+            border-bottom: none;
+        }
+        .focus-corners.bottom-left {
+            bottom: -3px;
+            left: -3px;
+            border-right: none;
+            border-top: none;
+        }
+        .focus-corners.bottom-right {
+            bottom: -3px;
+            right: -3px;
+            border-left: none;
+            border-top: none;
+        }
+        .camera-status {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
             display: none;
         }
-        #video.active {
+        .camera-status.active {
             display: block;
+        }
+        .camera-status.ready {
+            background: rgba(40, 167, 69, 0.9);
+        }
+        .camera-status .pulse {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
         }
         .camera-controls {
             display: flex;
             gap: 10px;
             justify-content: center;
+            flex-wrap: wrap;
+        }
+        .camera-info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #1976d2;
+        }
+        .preview-image {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: none;
+        }
+        .preview-image.active {
+            display: block;
         }
         .form-section {
             margin-top: 25px;
@@ -168,7 +271,7 @@
             background: #667eea;
             color: white;
         }
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
             background: #5568d3;
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(102,126,234,0.3);
@@ -198,6 +301,13 @@
         }
         .btn-danger:hover {
             background: #c82333;
+        }
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+        .btn-warning:hover {
+            background: #e0a800;
         }
         .button-group {
             display: flex;
@@ -280,57 +390,84 @@
         canvas {
             display: none;
         }
+        
+        @media (max-width: 600px) {
+            .button-group {
+                flex-direction: column;
+            }
+            .camera-controls {
+                flex-direction: column;
+            }
+            .camera-controls button {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>📇 Business Card Scanner</h1>
+            <h1>Business Card Scanner</h1>
             <p>Enter details manually or scan a business card to auto-fill</p>
         </div>
 
         <div class="content">
-            <!-- Alert Messages -->
-            <div id="alertSuccess" class="alert alert-success">
-                ✓ Business card saved successfully!
-            </div>
+            <div id="alertSuccess" class="alert alert-success"></div>
             <div id="alertError" class="alert alert-error">
-                ✗ <span id="errorMessage"></span>
+                <span id="errorMessage"></span>
             </div>
 
-            <!-- OCR Options -->
             <div class="ocr-section">
                 <h3 style="margin-bottom: 15px; color: #333;">Quick Fill with OCR</h3>
                 
                 <div class="tabs">
-                    <button class="tab active" data-tab="upload">📤 Upload Image</button>
-                    <button class="tab" data-tab="camera">📷 Use Camera</button>
+                    <button class="tab active" data-tab="upload">Upload Image</button>
+                    <button class="tab" data-tab="camera">Live Camera</button>
                 </div>
 
-                <!-- Upload Tab -->
                 <div id="upload-tab" class="tab-content active">
                     <div class="upload-area" id="uploadArea">
                         <div class="upload-icon">📄</div>
-                        <p style="margin-bottom: 10px; color: #666;">Click to upload or drag & drop</p>
+                        <p style="margin-bottom: 10px; color: #666;">Click to upload or drag and drop</p>
                         <p style="font-size: 12px; color: #999;">Supported: JPG, PNG, JPEG</p>
                         <input type="file" id="fileInput" accept="image/*">
                     </div>
                 </div>
 
-                <!-- Camera Tab -->
                 <div id="camera-tab" class="tab-content">
                     <div class="camera-section">
-                        <video id="video" autoplay playsinline></video>
+                        <div class="camera-info">
+                            Tip: Position the business card within the frame. The camera will automatically detect and capture when the card is in focus.
+                        </div>
+                        
+                        <div class="video-container" id="videoContainer" style="display: none;">
+                            <video id="video" autoplay playsinline muted></video>
+                            <div class="video-overlay">
+                                <div class="focus-frame">
+                                    <div class="focus-corners top-left"></div>
+                                    <div class="focus-corners top-right"></div>
+                                    <div class="focus-corners bottom-left"></div>
+                                    <div class="focus-corners bottom-right"></div>
+                                </div>
+                                <div class="camera-status" id="cameraStatus">
+                                    <span class="pulse"></span>
+                                    <span id="statusText">Initializing...</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <img id="previewImage" class="preview-image" alt="Captured image">
+                        
                         <div class="camera-controls">
-                            <button id="startCamera" class="btn-primary">📷 Start Camera</button>
-                            <button id="capture" class="btn-success" style="display: none;">📸 Capture</button>
-                            <button id="stopCamera" class="btn-danger" style="display: none;">⏹️ Stop</button>
+                            <button id="startCamera" class="btn-primary">Start Camera</button>
+                            <button id="capture" class="btn-success" style="display: none;">Manual Capture</button>
+                            <button id="retake" class="btn-warning" style="display: none;">Retake</button>
+                            <button id="stopCamera" class="btn-danger" style="display: none;">Stop Camera</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Form Section -->
             <div class="form-section">
                 <h3 style="margin-bottom: 20px; color: #333;">Business Card Details</h3>
                 
@@ -339,38 +476,37 @@
                         <label for="name">Name <span class="required">*</span></label>
                         <input type="text" id="name" name="name" required>
                         <div class="validation-error" id="name-error">Name is required</div>
-                        <div class="field-hint" id="name-hint" style="display: none;">✓ Auto-filled from image</div>
+                        <div class="field-hint" id="name-hint" style="display: none;">Auto-filled from image</div>
                     </div>
 
                     <div class="form-group">
                         <label for="email">Email</label>
                         <input type="email" id="email" name="email">
                         <div class="validation-error" id="email-error">Please enter a valid email</div>
-                        <div class="field-hint" id="email-hint" style="display: none;">✓ Auto-filled from image</div>
+                        <div class="field-hint" id="email-hint" style="display: none;">Auto-filled from image</div>
                     </div>
 
                     <div class="form-group">
                         <label for="phone">Phone Number</label>
                         <input type="text" id="phone" name="phone">
-                        <div class="field-hint" id="phone-hint" style="display: none;">✓ Auto-filled from image</div>
+                        <div class="field-hint" id="phone-hint" style="display: none;">Auto-filled from image</div>
                     </div>
 
                     <div class="form-group">
                         <label for="company">Company</label>
                         <input type="text" id="company" name="company">
-                        <div class="field-hint" id="company-hint" style="display: none;">✓ Auto-filled from image</div>
+                        <div class="field-hint" id="company-hint" style="display: none;">Auto-filled from image</div>
                     </div>
 
                     <div class="button-group">
-                        <button type="button" class="btn-secondary" onclick="resetForm()">🔄 Clear Form</button>
-                        <button type="submit" class="btn-primary">💾 Save to Database</button>
+                        <button type="button" class="btn-secondary" onclick="resetForm()">Clear Form</button>
+                        <button type="submit" class="btn-primary">Save to Database</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-    <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-content">
             <div class="spinner"></div>
@@ -381,22 +517,26 @@
     <canvas id="canvas"></canvas>
 
     <script>
-        // Tab switching
+        let stream = null;
+        let isProcessing = false;
+        let autoCaptureEnabled = true;
+
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', () => {
                 const tabName = tab.dataset.tab;
                 
-                // Update active tab
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                 tab.classList.add('active');
                 
-                // Update active content
                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
                 document.getElementById(`${tabName}-tab`).classList.add('active');
+                
+                if (tabName !== 'camera' && stream) {
+                    stopCamera();
+                }
             });
         });
 
-        // Upload area drag and drop
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
 
@@ -428,49 +568,153 @@
             }
         });
 
-        // Camera functionality
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
+        const videoContainer = document.getElementById('videoContainer');
+        const previewImage = document.getElementById('previewImage');
         const startCameraBtn = document.getElementById('startCamera');
         const captureBtn = document.getElementById('capture');
+        const retakeBtn = document.getElementById('retake');
         const stopCameraBtn = document.getElementById('stopCamera');
-
-        let stream = null;
+        const cameraStatus = document.getElementById('cameraStatus');
+        const statusText = document.getElementById('statusText');
 
         startCameraBtn.addEventListener('click', async () => {
             try {
+                updateCameraStatus('Requesting camera access...', false);
+                
                 stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
                         facingMode: 'environment',
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
                     } 
                 });
                 
                 video.srcObject = stream;
-                video.classList.add('active');
+                videoContainer.style.display = 'block';
                 startCameraBtn.style.display = 'none';
                 captureBtn.style.display = 'inline-block';
                 stopCameraBtn.style.display = 'inline-block';
+                
+                video.onloadedmetadata = () => {
+                    updateCameraStatus('Camera ready - Position card in frame', true);
+                    setTimeout(() => {
+                        if (stream) {
+                            startAutoCapture();
+                        }
+                    }, 2000);
+                };
+                
             } catch (err) {
                 console.error('Error accessing camera:', err);
                 showAlert('Failed to access camera. Please check permissions.', 'error');
+                updateCameraStatus('Camera access denied', false);
             }
         });
 
         captureBtn.addEventListener('click', () => {
+            captureImage();
+        });
+
+        retakeBtn.addEventListener('click', () => {
+            previewImage.classList.remove('active');
+            previewImage.src = '';
+            retakeBtn.style.display = 'none';
+            captureBtn.style.display = 'inline-block';
+            updateCameraStatus('Position card in frame', true);
+            
+            setTimeout(() => {
+                if (stream) {
+                    startAutoCapture();
+                }
+            }, 1000);
+        });
+
+        stopCameraBtn.addEventListener('click', stopCamera);
+
+        function updateCameraStatus(text, ready) {
+            statusText.textContent = text;
+            cameraStatus.classList.add('active');
+            if (ready) {
+                cameraStatus.classList.add('ready');
+            } else {
+                cameraStatus.classList.remove('ready');
+            }
+        }
+
+        function captureImage() {
+            if (isProcessing) return;
+            
             const context = canvas.getContext('2d');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             
+            previewImage.src = canvas.toDataURL('image/jpeg', 0.9);
+            previewImage.classList.add('active');
+            
+            captureBtn.style.display = 'none';
+            retakeBtn.style.display = 'inline-block';
+            updateCameraStatus('Image captured', true);
+            
             canvas.toBlob((blob) => {
                 processCameraImage(blob);
-                stopCamera();
-            }, 'image/jpeg', 0.8);
-        });
+            }, 'image/jpeg', 0.9);
+        }
 
-        stopCameraBtn.addEventListener('click', stopCamera);
+        function startAutoCapture() {
+            if (!autoCaptureEnabled || isProcessing) return;
+            
+            const checkInterval = setInterval(() => {
+                if (!stream || isProcessing || previewImage.classList.contains('active')) {
+                    clearInterval(checkInterval);
+                    return;
+                }
+                
+                if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                    const context = canvas.getContext('2d');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                    const brightness = calculateBrightness(imageData);
+                    const sharpness = calculateSharpness(imageData);
+                    
+                    if (brightness > 50 && brightness < 200 && sharpness > 10) {
+                        clearInterval(checkInterval);
+                        updateCameraStatus('Perfect! Auto-capturing...', true);
+                        setTimeout(() => {
+                            captureImage();
+                        }, 500);
+                    }
+                }
+            }, 1000);
+        }
+
+        function calculateBrightness(imageData) {
+            let sum = 0;
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                sum += (data[i] + data[i + 1] + data[i + 2]) / 3;
+            }
+            return sum / (data.length / 4);
+        }
+
+        function calculateSharpness(imageData) {
+            const data = imageData.data;
+            const w = imageData.width;
+            let variance = 0;
+            
+            for (let i = w * 4; i < data.length - w * 4; i += 4) {
+                const val = data[i];
+                const lap = -4 * val + data[i - 4] + data[i + 4] + data[i - w * 4] + data[i + w * 4];
+                variance += lap * lap;
+            }
+            
+            return variance / (data.length / 4);
+        }
 
         function stopCamera() {
             if (stream) {
@@ -478,18 +722,21 @@
                 video.srcObject = null;
                 stream = null;
             }
-            video.classList.remove('active');
+            videoContainer.style.display = 'none';
+            previewImage.classList.remove('active');
             startCameraBtn.style.display = 'inline-block';
             captureBtn.style.display = 'none';
+            retakeBtn.style.display = 'none';
             stopCameraBtn.style.display = 'none';
+            cameraStatus.classList.remove('active');
+            isProcessing = false;
         }
 
-        // Process uploaded image
         async function processImage(file) {
             const formData = new FormData();
             formData.append('file', file);
             
-            showLoading('Extracting information...');
+            showLoading('Extracting information from image...');
             
             try {
                 const response = await fetch('/extract', {
@@ -513,12 +760,15 @@
             }
         }
 
-        // Process camera capture
         async function processCameraImage(blob) {
-            const formData = new FormData();
-            formData.append('file', blob, 'capture.jpg');
+            if (isProcessing) return;
+            isProcessing = true;
             
-            showLoading('Extracting information...');
+            const formData = new FormData();
+            formData.append('camera_image', await blobToBase64(blob));
+            
+            showLoading('Extracting information from card...');
+            updateCameraStatus('Processing image...', false);
             
             try {
                 const response = await fetch('/extract', {
@@ -530,19 +780,35 @@
                 
                 if (result.success) {
                     fillFormFields(result.fields);
-                    showAlert('Information extracted successfully!', 'success');
+                    showAlert('Information extracted successfully! Review and save.', 'success');
+                    updateCameraStatus('Extraction complete!', true);
+                    
+                    setTimeout(() => {
+                        document.querySelector('input[name="name"]').focus();
+                    }, 500);
                 } else {
-                    showAlert(result.error || 'Failed to extract information', 'error');
+                    showAlert(result.error || 'Failed to extract information. Please try again.', 'error');
+                    updateCameraStatus('Extraction failed - Try again', false);
                 }
             } catch (error) {
                 console.error('Error:', error);
                 showAlert('Failed to process image', 'error');
+                updateCameraStatus('Error - Try again', false);
             } finally {
                 hideLoading();
+                isProcessing = false;
             }
         }
 
-        // Fill form fields
+        async function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
         function fillFormFields(fields) {
             const fieldNames = ['name', 'email', 'phone', 'company'];
             
@@ -560,18 +826,15 @@
             });
         }
 
-        // Form submission
         const form = document.getElementById('businessCardForm');
         
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            // Validate
             const nameInput = document.getElementById('name');
             const emailInput = document.getElementById('email');
             let isValid = true;
             
-            // Validate name
             if (!nameInput.value.trim()) {
                 document.getElementById('name-error').style.display = 'block';
                 nameInput.style.borderColor = '#dc3545';
@@ -581,7 +844,6 @@
                 nameInput.style.borderColor = '#e0e0e0';
             }
             
-            // Validate email if provided
             if (emailInput.value.trim()) {
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
                 if (!emailRegex.test(emailInput.value.trim())) {
@@ -596,7 +858,6 @@
             
             if (!isValid) return;
             
-            // Submit form
             const formData = new FormData(form);
             
             showLoading('Saving to database...');
@@ -625,7 +886,6 @@
             }
         });
         
-        // Reset form
         function resetForm() {
             form.reset();
             document.querySelectorAll('input').forEach(input => {
@@ -640,7 +900,6 @@
             hideAlert();
         }
         
-        // Show alert
         function showAlert(message, type) {
             hideAlert();
             
@@ -649,7 +908,7 @@
             if (type === 'error') {
                 document.getElementById('errorMessage').textContent = message;
             } else {
-                alert.textContent = '✓ ' + message;
+                alert.textContent = message;
             }
             
             alert.classList.add('show');
@@ -659,25 +918,21 @@
             }
         }
         
-        // Hide alert
         function hideAlert() {
             document.querySelectorAll('.alert').forEach(alert => {
                 alert.classList.remove('show');
             });
         }
         
-        // Show loading
         function showLoading(text) {
             document.getElementById('loadingText').textContent = text;
             document.getElementById('loadingOverlay').classList.add('active');
         }
         
-        // Hide loading
         function hideLoading() {
             document.getElementById('loadingOverlay').classList.remove('active');
         }
         
-        // Real-time validation
         document.getElementById('name').addEventListener('input', function() {
             if (this.value.trim()) {
                 document.getElementById('name-error').style.display = 'none';
@@ -695,7 +950,6 @@
             }
         });
         
-        // Clean up camera on page unload
         window.addEventListener('beforeunload', stopCamera);
     </script>
 </body>
