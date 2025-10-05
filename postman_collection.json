@@ -1,0 +1,253 @@
+{
+  "info": {
+    "name": "Business Card OCR API",
+    "description": "API collection for Business Card OCR application",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "your-api-key-here",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/health",
+          "host": ["{{base_url}}"],
+          "path": ["api", "health"]
+        },
+        "description": "Check API health status - No authentication required"
+      }
+    },
+    {
+      "name": "Extract OCR from Image",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "/path/to/business-card.jpg",
+              "description": "Business card image file"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/ocr/extract",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "ocr", "extract"]
+        },
+        "description": "Extract information from business card image using OCR"
+      }
+    },
+    {
+      "name": "Create Business Card",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"phone\": \"+1 234 567 8900\",\n  \"company\": \"Acme Corporation\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/cards",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "cards"]
+        },
+        "description": "Create a new business card entry"
+      }
+    },
+    {
+      "name": "List Business Cards",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/cards?page=1&page_size=10",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "cards"],
+          "query": [
+            {
+              "key": "page",
+              "value": "1",
+              "description": "Page number"
+            },
+            {
+              "key": "page_size",
+              "value": "10",
+              "description": "Items per page"
+            }
+          ]
+        },
+        "description": "List all business cards with pagination"
+      }
+    },
+    {
+      "name": "Search Business Cards",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/cards?search=Acme&page=1&page_size=20",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "cards"],
+          "query": [
+            {
+              "key": "search",
+              "value": "Acme",
+              "description": "Search term"
+            },
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "page_size",
+              "value": "20"
+            }
+          ]
+        },
+        "description": "Search business cards by name, email, or company"
+      }
+    },
+    {
+      "name": "Get Single Business Card",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/cards/1",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "cards", "1"]
+        },
+        "description": "Get a specific business card by ID"
+      }
+    },
+    {
+      "name": "Update Business Card",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Jane Doe\",\n  \"email\": \"jane.doe@newcompany.com\",\n  \"phone\": \"+1 234 567 8901\",\n  \"company\": \"New Company Inc\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/cards/1",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "cards", "1"]
+        },
+        "description": "Update an existing business card"
+      }
+    },
+    {
+      "name": "Delete Business Card",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/cards/1",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "cards", "1"]
+        },
+        "description": "Delete a business card"
+      }
+    },
+    {
+      "name": "Extract and Save (Combined)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "/path/to/business-card.jpg",
+              "description": "Business card image"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/ocr/extract-and-save",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "ocr", "extract-and-save"]
+        },
+        "description": "Extract information from image and save to database in one operation"
+      }
+    }
+  ]
+}

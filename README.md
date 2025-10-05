@@ -1,56 +1,110 @@
-Business Card OCR Scanner
-A FastAPI-based application that extracts information from business cards using Llama Vision AI, allows user confirmation, and stores the results in Supabase.
+# Business Card OCR Scanner with REST API
 
-Features
-✏️ Manual entry - Fill in business card details manually
-📤 Upload business card images from your device
-📷 Capture photos directly using your webcam
-🤖 AI-powered OCR using Llama 3.2 Vision model
-✨ Auto-fill form - OCR automatically fills the form fields
-✏️ Review and edit extracted information before saving
-💾 Store data in Supabase database
-🎨 Modern, intuitive UI with drag & drop support
-Architecture
-Components
-Backend (FastAPI)
-Handles image uploads and camera captures
-Processes images with Llama Vision API
-Manages Supabase database operations
-Returns JSON responses for AJAX requests
-Frontend
-form.html - Unified interface with form, upload, and camera capture
-Tab-based interface for easy switching between input methods
-Real-time validation and auto-fill indicators
-External Services
-Llama API - Vision model for OCR
-Supabase - PostgreSQL database for storage
-Prerequisites
-Python 3.8+
-Supabase account and project
-Llama API access (or compatible vision API endpoint)
-Installation
-Clone the repository
-bash
+A FastAPI-based application that extracts information from business cards using Llama Vision AI, with both a web interface and a comprehensive REST API for integration into your applications.
+
+## 🌟 Features
+
+### Web Interface
+- ✏️ **Manual entry** - Fill in business card details manually
+- 📤 **Upload images** - Upload business card images from your device
+- 📷 **Camera capture** - Capture photos directly using your webcam
+- 🤖 **AI-powered OCR** - Using Llama 3.2 Vision model
+- ✨ **Auto-fill form** - OCR automatically fills the form fields
+- ✏️ **Review and edit** - Edit extracted information before saving
+- 💾 **Database storage** - Store data in Supabase
+- 🎨 **Modern UI** - Intuitive interface with drag & drop support
+
+### REST API
+- 🔐 **Authentication** - Secure API key authentication
+- 📊 **Full CRUD** - Create, Read, Update, Delete operations
+- 🔍 **Search & Filter** - Search cards by name, email, or company
+- 📄 **Pagination** - Efficient data retrieval with pagination
+- 🤖 **OCR Endpoint** - Extract information programmatically
+- ⚡ **Combined Operations** - Extract and save in one API call
+- 📚 **Interactive Docs** - Swagger UI for API exploration
+- 🔄 **RESTful** - Standard REST API design
+
+## 📋 Table of Contents
+
+- [Quick Start](#quick-start)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+  - [Web Interface](#web-interface)
+  - [REST API](#rest-api)
+- [API Documentation](#api-documentation)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Troubleshooting](#troubleshooting)
+
+## 🚀 Quick Start
+
+```bash
+# Clone repository
+git clone <your-repo>
+cd business-card-ocr
+
+# Install dependencies
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your credentials
+
+# Run application
+python ocr.py
+
+# Access
+# Web Interface: http://localhost:8000
+# API Docs: http://localhost:8000/api/docs
+```
+
+## 📦 Installation
+
+### Prerequisites
+- Python 3.8+
+- Supabase account and project
+- Llama API access (or compatible vision API)
+
+### Step-by-Step
+
+1. **Clone the repository**
+   ```bash
    git clone <your-repo>
    cd business-card-ocr
-Create virtual environment
-bash
+   ```
+
+2. **Create virtual environment**
+   ```bash
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
-Install dependencies
-bash
-   pip install -r requirements.txt
-Set up environment variables
-bash
-   cp .env.example .env
-Edit .env and add your credentials:
+   ```
 
-SUPABASE_URL - Your Supabase project URL
-SUPABASE_KEY - Your Supabase service role key
-LLAMA_API_URL - Your Llama API endpoint
-LLAMA_API_KEY - Your Llama API key
-Create Supabase table Run this SQL in your Supabase SQL editor:
-sql
+3. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Edit `.env` and add your credentials:
+   ```env
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_KEY=your-supabase-service-role-key
+   LLAMA_API_URL=https://your-llama-api-endpoint
+   LLAMA_API_KEY=your-llama-api-key
+   API_KEY=your-secure-api-key-here
+   ```
+
+5. **Create Supabase table**
+   
+   Run this SQL in your Supabase SQL editor:
+   ```sql
    CREATE TABLE business_cards (
        id BIGSERIAL PRIMARY KEY,
        name TEXT NOT NULL,
@@ -59,141 +113,387 @@ sql
        company TEXT,
        created_at TIMESTAMPTZ DEFAULT NOW()
    );
-Create templates directory
-bash
+   ```
+
+6. **Create templates directory**
+   ```bash
    mkdir templates
-Place form.html in the templates/ directory.
+   ```
+   Place `form.html` in the `templates/` directory.
 
-Usage
-Start the server
-bash
+## ⚙️ Configuration
+
+### Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `SUPABASE_URL` | Your Supabase project URL | Yes |
+| `SUPABASE_KEY` | Supabase service role key | Yes |
+| `LLAMA_API_URL` | Llama API endpoint | Yes |
+| `LLAMA_API_KEY` | Llama API key | Yes |
+| `API_KEY` | API authentication key | Yes |
+| `LLAMA_DEPLOYMENT_NAME` | Model deployment name | No |
+
+### Generate Secure API Key
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+## 📖 Usage
+
+### Web Interface
+
+1. **Start the server**
+   ```bash
    python ocr.py
-Or with uvicorn:
+   ```
 
-bash
-   uvicorn ocr:app --reload --host 0.0.0.0 --port 8000
-Access the application Open your browser and navigate to:
-   http://localhost:8000
-Enter business card information You have three options: Option A: Manual Entry
-Simply fill in the form fields manually
-Option B: Upload Image
-Click the "Upload Image" tab
-Click the upload area or drag & drop an image
-Wait for OCR to extract and auto-fill the form
-Review and edit any fields if needed
-Option C: Camera Capture
-Click the "Use Camera" tab
-Click "Start Camera" and allow camera access
-Position the business card in the frame
-Click "Capture" to take a photo
-Wait for OCR to extract and auto-fill the form
-Review and edit any fields if needed
-Save to database
-After reviewing the information, click "Save to Database"
-You'll see a success message when saved
-API Endpoints
-GET / - Home page (unified form interface)
-POST /extract - Process image and return extracted data as JSON
-POST /save - Save confirmed data to Supabase
-GET /health - Health check endpoint
-Project Structure
+2. **Access the interface**
+   
+   Open your browser: `http://localhost:8000`
+
+3. **Three ways to add cards:**
+   
+   **Option A: Manual Entry**
+   - Fill in the form fields manually
+   - Click "Save to Database"
+   
+   **Option B: Upload Image**
+   - Click "Upload Image" tab
+   - Upload or drag & drop an image
+   - Review and edit extracted data
+   - Click "Save to Database"
+   
+   **Option C: Camera Capture**
+   - Click "Use Camera" tab
+   - Click "Start Camera"
+   - Position card and click "Capture"
+   - Review and edit extracted data
+   - Click "Save to Database"
+
+### REST API
+
+#### Quick Start
+
+```python
+import requests
+
+# Configuration
+BASE_URL = "http://localhost:8000"
+API_KEY = "your-api-key-here"
+headers = {"Authorization": f"Bearer {API_KEY}"}
+
+# Extract OCR
+with open("business-card.jpg", "rb") as f:
+    files = {"file": f}
+    response = requests.post(
+        f"{BASE_URL}/api/v1/ocr/extract",
+        files=files,
+        headers=headers
+    )
+    print(response.json())
+
+# Create card
+data = {
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "+1234567890",
+    "company": "Acme Corp"
+}
+response = requests.post(
+    f"{BASE_URL}/api/v1/cards",
+    json=data,
+    headers=headers
+)
+print(response.json())
+
+# List cards
+response = requests.get(
+    f"{BASE_URL}/api/v1/cards?page=1&page_size=10",
+    headers=headers
+)
+print(response.json())
+```
+
+#### Using the Python Client
+
+```python
+from client import BusinessCardClient
+
+# Initialize client
+client = BusinessCardClient(
+    base_url="http://localhost:8000",
+    api_key="your-api-key-here"
+)
+
+# Extract and save in one operation
+result = client.extract_and_save("business-card.jpg")
+print(f"Saved with ID: {result['id']}")
+
+# List cards
+cards = client.list_cards(page=1, page_size=20)
+print(f"Total: {cards['total']} cards")
+
+# Search
+results = client.list_cards(search="Acme")
+for card in results['data']:
+    print(f"{card['name']} - {card['company']}")
+```
+
+## 📚 API Documentation
+
+### Base URL
+```
+http://localhost:8000/api/v1
+```
+
+### Authentication
+All endpoints (except `/api/health`) require authentication:
+
+```bash
+Authorization: Bearer your-api-key-here
+```
+
+### Main Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/health` | Health check (no auth) |
+| `POST` | `/api/v1/ocr/extract` | Extract OCR from image |
+| `POST` | `/api/v1/cards` | Create new card |
+| `GET` | `/api/v1/cards` | List cards (paginated) |
+| `GET` | `/api/v1/cards/{id}` | Get specific card |
+| `PUT` | `/api/v1/cards/{id}` | Update card |
+| `DELETE` | `/api/v1/cards/{id}` | Delete card |
+| `POST` | `/api/v1/ocr/extract-and-save` | Extract & save |
+
+### Interactive Documentation
+
+Visit these URLs when the server is running:
+
+- **Swagger UI**: `http://localhost:8000/api/docs`
+- **ReDoc**: `http://localhost:8000/api/redoc`
+
+### Examples
+
+**Extract OCR**
+```bash
+curl -X POST http://localhost:8000/api/v1/ocr/extract \
+  -H "Authorization: Bearer your-api-key" \
+  -F "file=@card.jpg"
+```
+
+**Create Card**
+```bash
+curl -X POST http://localhost:8000/api/v1/cards \
+  -H "Authorization: Bearer your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"John Doe","email":"john@example.com"}'
+```
+
+**List Cards**
+```bash
+curl "http://localhost:8000/api/v1/cards?page=1&page_size=10" \
+  -H "Authorization: Bearer your-api-key"
+```
+
+For complete API documentation, see [API_DOCUMENTATION.md](API_DOCUMENTATION.md)
+
+## 🧪 Testing
+
+### Run Tests
+
+```bash
+# Install pytest
+pip install pytest pytest-cov
+
+# Run all tests
+pytest test_api.py -v
+
+# Run with coverage
+pytest test_api.py --cov=ocr --cov-report=html
+
+# Run specific test class
+pytest test_api.py::TestCardCRUD -v
+
+# Run specific test
+pytest test_api.py::TestCardCRUD::test_create_card -v
+```
+
+### Manual Testing
+
+Use the interactive API documentation:
+1. Start server: `python ocr.py`
+2. Visit: `http://localhost:8000/api/docs`
+3. Click "Authorize" and enter your API key
+4. Test endpoints directly in the browser
+
+## 🚀 Deployment
+
+### Production Checklist
+
+- [ ] Change `API_KEY` to a secure random string
+- [ ] Enable HTTPS (use reverse proxy like Nginx)
+- [ ] Configure CORS for specific origins only
+- [ ] Implement rate limiting
+- [ ] Set up logging and monitoring
+- [ ] Enable database backups
+- [ ] Configure firewall rules
+- [ ] Set up health check monitoring
+- [ ] Use environment-specific configs
+
+### Docker Deployment (Optional)
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["uvicorn", "ocr:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+```bash
+# Build
+docker build -t business-card-ocr .
+
+# Run
+docker run -p 8000:8000 --env-file .env business-card-ocr
+```
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**1. API Key Authentication Failed**
+```
+Solution: Check that API_KEY in .env matches the key you're using
+```
+
+**2. Supabase Connection Error**
+```
+Solution: Verify SUPABASE_URL and SUPABASE_KEY are correct
+Check Supabase dashboard for project status
+```
+
+**3. OCR Extraction Failed**
+```
+Solution: Verify LLAMA_API_URL and LLAMA_API_KEY
+Check image quality and format
+Review logs for specific error messages
+```
+
+**4. Camera Not Working**
+```
+Solution: Check browser permissions
+Use HTTPS in production (required for camera)
+Try different browser
+```
+
+**5. Import Errors**
+```
+Solution: Ensure all dependencies are installed:
+pip install -r requirements.txt
+```
+
+### Debug Mode
+
+Enable detailed logging:
+```python
+# In ocr.py, change logging level
+logging.basicConfig(level=logging.DEBUG)
+```
+
+### Health Check
+
+```bash
+curl http://localhost:8000/api/health
+```
+
+Expected response:
+```json
+{
+  "status": "healthy",
+  "supabase_connected": true,
+  "llama_api_configured": true,
+  "version": "1.0.0"
+}
+```
+
+## 📁 Project Structure
+
+```
 business-card-ocr/
-├── ocr.py              # Main FastAPI application
-├── requirements.txt    # Python dependencies
-├── .env.example       # Environment variables template
-├── .env               # Your environment variables (not in git)
-├── .gitignore         # Git ignore rules
-├── README.md          # This file
+├── ocr.py                  # Main application (Web + API)
+├── client.py               # Python client library
+├── test_api.py             # API tests
+├── requirements.txt        # Python dependencies
+├── .env.example           # Environment template
+├── .env                   # Your environment (not in git)
+├── .gitignore            # Git ignore rules
+├── README.md             # This file
+├── API_DOCUMENTATION.md  # Detailed API docs
 └── templates/
-    └── form.html      # Unified interface (form + upload + camera)
-Key Features
-Backend (ocr.py)
-✅ Environment variable support for configuration
-✅ Comprehensive error handling and logging
-✅ Image optimization (resize, format conversion)
-✅ Robust JSON parsing from LLM responses
-✅ Request timeout handling
-✅ Input validation
-✅ Health check endpoint
-✅ JSON responses for AJAX requests
-Frontend (form.html)
-✅ Unified interface - form, upload, and camera in one page
-✅ Tab-based navigation between input methods
-✅ Drag & drop file upload support
-✅ Camera start/stop functionality
-✅ Loading indicators for async operations
-✅ Success/error message alerts
-✅ Auto-fill indicators showing which fields were extracted
-✅ Real-time form validation
-✅ Email format validation
-✅ Mobile-responsive design
-✅ Modern gradient design with smooth animations
-User Experience Improvements
-Flexible Input Methods
-Users can choose the method that works best for them
-Easy switching between manual entry, upload, and camera
-Visual Feedback
-Auto-filled fields are highlighted in green
-Clear indicators show which fields were extracted from OCR
-Loading overlays prevent confusion during processing
-Error Handling
-Clear error messages for validation issues
-Graceful handling of OCR failures
-Camera permission errors are user-friendly
-Form Validation
-Real-time validation as user types
-Clear error messages under fields
-Email format validation
-Required field indicators
-Troubleshooting
-Camera not working
-Check browser permissions for camera access
-Use HTTPS in production (required for camera access)
-Try a different browser
-Ensure camera is not being used by another application
-OCR extraction issues
-Ensure image is clear and well-lit
-Check Llama API credentials in .env
-Review logs for API errors
-Try uploading instead of camera if quality is low
-Database connection errors
-Verify Supabase credentials in .env
-Check table exists with correct schema
-Review Supabase logs in dashboard
-Test connection with /health endpoint
-Form not auto-filling
-Check browser console for JavaScript errors
-Verify API is returning success response
-Ensure JSON response format is correct
-Check network tab in browser dev tools
-Security Notes
-⚠️ Important: Never commit your .env file to version control!
+    └── form.html         # Web interface
+```
 
-Use service role key only on server-side
-Consider using anon key + RLS policies for production
-Implement authentication before deploying
-Add rate limiting for production use
-Validate file types and sizes on server-side
-Sanitize user inputs before database insertion
-Future Enhancements
- User authentication and login
- Search and filter saved cards
- Export to CSV/vCard
- Bulk upload processing
- Image quality validation and feedback
- Multiple language support
- Card categorization/tags
- Edit/delete saved cards
- Duplicate detection
- Analytics dashboard
-License
+## 🤝 Contributing
+
+Contributions welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
+## 📝 License
+
 MIT License - Feel free to use and modify as needed.
 
-Support
-For issues or questions:
+## 🆘 Support
 
-Check the logs for error messages
-Verify all environment variables are set correctly
-Ensure Supabase table schema matches requirements
-Test with the /health endpoint
-Check browser console for frontend errors
+- **Documentation**: Check `/api/docs` when server is running
+- **Issues**: Create an issue on GitHub
+- **API Help**: See `API_DOCUMENTATION.md`
+- **Tests**: Run `pytest test_api.py -v`
+
+## 🎯 Roadmap
+
+- [x] Web interface
+- [x] OCR extraction
+- [x] REST API
+- [x] Authentication
+- [x] Pagination
+- [x] Search functionality
+- [ ] Rate limiting
+- [ ] Batch upload
+- [ ] Export to CSV/vCard
+- [ ] Duplicate detection
+- [ ] Multi-language support
+- [ ] Analytics dashboard
+- [ ] Webhooks
+- [ ] GraphQL API
+
+## 📊 Version History
+
+### v1.0.0 (2025-10-05)
+- Initial release
+- Web interface with manual entry, upload, and camera
+- Full REST API with CRUD operations
+- OCR extraction with Llama Vision
+- Supabase integration
+- API authentication
+- Interactive documentation
+- Python client library
+- Comprehensive tests
+
+---
+
+**Made with ❤️ using FastAPI, Llama Vision, and Supabase**
