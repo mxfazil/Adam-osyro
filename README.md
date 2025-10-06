@@ -67,6 +67,7 @@ python ocr.py
 - Python 3.8+
 - Supabase account and project
 - Llama API access (or compatible vision API)
+- Tavily API key for web scraping
 
 ### Step-by-Step
 
@@ -99,20 +100,25 @@ python ocr.py
    LLAMA_API_URL=https://your-llama-api-endpoint
    LLAMA_API_KEY=your-llama-api-key
    API_KEY=your-secure-api-key-here
+   TAVILY_API_KEY=your-tavily-api-key-for-web-scraping
+   GEMINI_API_KEY=your-gemini-api-key-for-chatbot
    ```
 
-5. **Create Supabase table**
+5. **Create Supabase tables**
    
-   Run this SQL in your Supabase SQL editor:
+   The `business_cards` table should already exist. Run this SQL in your Supabase SQL editor to create the web-scraped data table:
    ```sql
-   CREATE TABLE business_cards (
+   CREATE TABLE web_scraped_data (
        id BIGSERIAL PRIMARY KEY,
        name TEXT NOT NULL,
-       email TEXT,
-       phone TEXT,
        company TEXT,
+       web_info JSONB,
        created_at TIMESTAMPTZ DEFAULT NOW()
    );
+   
+   -- Create indexes for faster searches
+   CREATE INDEX idx_web_scraped_name ON web_scraped_data (name);
+   CREATE INDEX idx_web_scraped_company ON web_scraped_data (company);
    ```
 
 6. **Create templates directory**
@@ -132,6 +138,8 @@ python ocr.py
 | `LLAMA_API_URL` | Llama API endpoint | Yes |
 | `LLAMA_API_KEY` | Llama API key | Yes |
 | `API_KEY` | API authentication key | Yes |
+| `TAVILY_API_KEY` | Tavily API key for web scraping | Yes |
+| `GEMINI_API_KEY` | Google Gemini API key for chatbot | Yes |
 | `LLAMA_DEPLOYMENT_NAME` | Model deployment name | No |
 
 ### Generate Secure API Key
@@ -146,7 +154,7 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 
 1. **Start the server**
    ```bash
-   python ocr.py
+   python streamlined_app.py
    ```
 
 2. **Access the interface**
@@ -157,20 +165,29 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
    
    **Option A: Manual Entry**
    - Fill in the form fields manually
-   - Click "Save to Database"
+   - Click "Save Card" to save just the business card
+   - Click "Save Web Info" to save just the web-scraped information
+   - Click "Save All" to save both the business card and web information
+   - Click "Continue to AI Chat" to proceed to the chat interface
    
    **Option B: Upload Image**
    - Click "Upload Image" tab
    - Upload or drag & drop an image
    - Review and edit extracted data
-   - Click "Save to Database"
+   - Click "Save Card" to save just the business card
+   - Click "Save Web Info" to save just the web-scraped information
+   - Click "Save All" to save both the business card and web information
+   - Click "Continue to AI Chat" to proceed to the chat interface
    
    **Option C: Camera Capture**
    - Click "Use Camera" tab
    - Click "Start Camera"
    - Position card and click "Capture"
    - Review and edit extracted data
-   - Click "Save to Database"
+   - Click "Save Card" to save just the business card
+   - Click "Save Web Info" to save just the web-scraped information
+   - Click "Save All" to save both the business card and web information
+   - Click "Continue to AI Chat" to proceed to the chat interface
 
 ### REST API
 

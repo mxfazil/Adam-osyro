@@ -32,7 +32,7 @@ from ocr import (
 
 # Import enhanced modules
 from webscraper import TavilyWebScraper, create_scraper
-from chatbot import AnthropicChatbot, create_chatbot
+from chatbot import GeminiChatbot, create_chatbot
 
 from contextlib import asynccontextmanager
 
@@ -62,7 +62,7 @@ logger = logging.getLogger(__name__)
 
 # Global instances
 web_scraper: Optional[TavilyWebScraper] = None
-ai_chatbot: Optional[AnthropicChatbot] = None
+ai_chatbot: Optional[GeminiChatbot] = None
 
 # Session storage for profiles
 user_sessions: Dict[str, Dict] = {}
@@ -90,21 +90,21 @@ def initialize_services():
         web_scraper = None
     
     # Initialize chatbot
-    anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-    logger.info(f"🤖 Anthropic API key found: {'Yes' if anthropic_api_key else 'No'}")
-    logger.info(f"🤖 Anthropic key starts with: {anthropic_api_key[:10] + '...' if anthropic_api_key else 'None'}")
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
+    logger.info(f"🤖 Gemini API key found: {'Yes' if gemini_api_key else 'No'}")
+    logger.info(f"🤖 Gemini key starts with: {gemini_api_key[:10] + '...' if gemini_api_key else 'None'}")
     
-    if anthropic_api_key and anthropic_api_key != "your-anthropic-api-key-here":
+    if gemini_api_key and gemini_api_key != "your-gemini-api-key-here":
         try:
-            ai_chatbot = create_chatbot(anthropic_api_key)
-            logger.info("✅ Anthropic chatbot initialized successfully")
+            ai_chatbot = create_chatbot(gemini_api_key)
+            logger.info("✅ Gemini chatbot initialized successfully")
         except Exception as chatbot_error:
-            logger.error(f"❌ Failed to initialize Anthropic chatbot: {chatbot_error}")
+            logger.error(f"❌ Failed to initialize Gemini chatbot: {chatbot_error}")
             import traceback
-            logger.error(f"❌ Anthropic chatbot error traceback: {traceback.format_exc()}")
+            logger.error(f"❌ Gemini chatbot error traceback: {traceback.format_exc()}")
             ai_chatbot = None
     else:
-        logger.warning("⚠️ Anthropic API key not valid - chatbot disabled")
+        logger.warning("⚠️ Gemini API key not valid - chatbot disabled")
         ai_chatbot = None
 
 # Pydantic models
@@ -121,11 +121,49 @@ class ChatRequest(BaseModel):
     message: str = Field(..., description="User message")
     session_id: str = Field(..., description="Session ID")
 
+class ScrapeRequest(BaseModel):
+    """Request model for web scraping"""
+    name: str = Field(..., description="Person's name")
+    company: Optional[str] = Field(None, description="Company name")
+
 # Main landing page
 @app.get("/", response_class=HTMLResponse, tags=["Web Interface"])
 async def home(request: Request):
     """Main landing page with streamlined interface"""
     return templates.TemplateResponse("streamlined_form.html", {"request": request})
+
+@app.post("/scrape-info", tags=["Web Interface"])
+async def scrape_info(request: ScrapeRequest):
+    """
+    Scrape web information for a person and company
+    """
+    try:
+        if not web_scraper:
+            raise HTTPException(status_code=503, detail="Web scraper not available")
+        
+        if not request.name.strip():
+            raise HTTPException(status_code=400, detail="Name is required")
+        
+        logger.info(f"🔍 Scraping information for {request.name}")
+        
+        # Use the quick user summary method
+        web_info = web_scraper.quick_user_summary(
+            request.name, 
+            request.company if request.company else None
+        )
+        
+        return JSONResponse({
+            "success": True,
+            "web_info": web_info,
+            "message": "Web information gathered successfully"
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Web scraping error: {e}")
+        return JSONResponse({
+            "success": False,
+            "message": f"Failed to gather web information: {str(e)}"
+        }, status_code=500)
 
 # Process user information and redirect to chat
 @app.post("/process-info", tags=["Web Interface"])
@@ -457,6 +495,169 @@ async def send_chat_message(request: ChatRequest):
             "response": f"Sorry, I encountered an error: {str(e)}. Please try again.",
             "timestamp": datetime.now().isoformat()
         }
+
+@app.post("/save", tags=["Web Interface"])
+async def save_card(
+    name: str = Form(...),
+    email: str = Form(""),
+    phone: str = Form(""),
+    company: str = Form("")
+):
+    """
+    Save confirmed business card data to Supabase
+    Used by the web interface
+    """
+    try:
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database connection not available")
+        
+        if not name.strip():
+            raise HTTPException(status_code=400, detail="Name is required")
+        
+        data = {
+            "name": name.strip(),
+            "email": email.strip(),
+            "phone": phone.strip(),
+            "company": company.strip()
+        }
+        
+        logger.info(f"Saving to Supabase: {data}")
+        result = supabase.table("business_cards").insert(data).execute()
+        logger.info(f"Successfully saved card with ID: {result.data[0]['id']}")
+        
+        return JSONResponse({"success": True, "message": "Business card saved successfully", "data": {"id": result.data[0]['id']}})
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error saving to Supabase: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save: {str(e)}")
+
+@app.post("/save-web-info", tags=["Web Interface"])
+async def save_web_info(
+    name: str = Form(...),
+    company: str = Form(""),
+    web_info: str = Form(...)  # JSON string of web-scraped data
+):
+    """
+    Save web-scraped information to Supabase
+    """
+    try:
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database connection not available")
+        
+        # Parse the web info JSON
+        try:
+            web_info_data = json.loads(web_info)
+        except json.JSONDecodeError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid JSON in web_info: {str(e)}")
+        
+        # Prepare data for Supabase
+        data = {
+            "name": name.strip(),
+            "company": company.strip(),
+            "web_info": web_info_data,
+            "created_at": datetime.now().isoformat()
+        }
+        
+        logger.info(f"Saving web info to Supabase for {name}")
+        logger.info(f"Web info data: {web_info_data}")
+        result = supabase.table("web_scraped_data").insert(data).execute()
+        logger.info(f"Successfully saved web info with ID: {result.data[0]['id']}")
+        
+        return JSONResponse({
+            "success": True, 
+            "message": "Web-scraped information saved successfully", 
+            "data": {"id": result.data[0]['id']}
+        })
+        
+    except HTTPException as http_error:
+        logger.error(f"HTTP error saving web info to Supabase: {http_error.detail}")
+        raise
+    except Exception as e:
+        logger.error(f"Error saving web info to Supabase: {e}")
+        logger.error(f"Error type: {type(e).__name__}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to save web info: {str(e)}")
+
+@app.post("/save-all", tags=["Web Interface"])
+async def save_all(
+    name: str = Form(...),
+    email: str = Form(""),
+    phone: str = Form(""),
+    company: str = Form(""),
+    web_info: str = Form("")  # JSON string of web-scraped data
+):
+    """
+    Save both business card and web-scraped information to Supabase
+    """
+    try:
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database connection not available")
+        
+        # Validate required fields
+        if not name.strip():
+            raise HTTPException(status_code=400, detail="Name is required")
+        
+        # Save business card
+        card_data = {
+            "name": name.strip(),
+            "email": email.strip(),
+            "phone": phone.strip(),
+            "company": company.strip()
+        }
+        
+        logger.info(f"Saving business card to Supabase: {card_data}")
+        card_result = supabase.table("business_cards").insert(card_data).execute()
+        card_id = card_result.data[0]['id']
+        logger.info(f"Successfully saved business card with ID: {card_id}")
+        
+        # Save web-scraped data if available
+        web_info_id = None
+        if web_info.strip():
+            try:
+                web_info_data = json.loads(web_info)
+                web_data = {
+                    "name": name.strip(),
+                    "company": company.strip(),
+                    "web_info": web_info_data,
+                    "created_at": datetime.now().isoformat()
+                }
+                
+                logger.info(f"Saving web info to Supabase for {name}")
+                logger.info(f"Web info data: {web_info_data}")
+                web_result = supabase.table("web_scraped_data").insert(web_data).execute()
+                web_info_id = web_result.data[0]['id']
+                logger.info(f"Successfully saved web info with ID: {web_info_id}")
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON in web_info: {str(e)}")
+                # Continue without saving web info
+            except Exception as e:
+                logger.error(f"Error saving web info to Supabase: {e}")
+                logger.error(f"Error type: {type(e).__name__}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                # Continue without saving web info
+        
+        return JSONResponse({
+            "success": True, 
+            "message": "All information saved successfully", 
+            "data": {
+                "card_id": card_id,
+                "web_info_id": web_info_id
+            }
+        })
+        
+    except HTTPException as http_error:
+        logger.error(f"HTTP error saving all information to Supabase: {http_error.detail}")
+        raise
+    except Exception as e:
+        logger.error(f"Error saving all information to Supabase: {e}")
+        logger.error(f"Error type: {type(e).__name__}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to save information: {str(e)}")
 
 # Get session data API
 @app.get("/api/session/{session_id}", tags=["API"])

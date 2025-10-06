@@ -9,7 +9,7 @@ jinja2==3.1.2
 python-dotenv==1.0.0
 
 # New dependencies for enhanced features
-anthropic==0.34.0
+google-generativeai==0.7.0
 tavily-python==0.3.0
 
 # Compatible versions to avoid conflicts

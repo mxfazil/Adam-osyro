@@ -600,6 +600,7 @@
 
                         <div class="button-group">
                             <button type="button" class="btn-secondary" onclick="resetForm()">Clear Form</button>
+                            <button type="button" class="btn-success" onclick="saveToDatabase()">💾 Save to Database</button>
                             <button type="submit" class="btn-primary">Continue to AI Chat →</button>
                         </div>
                     </form>
@@ -1080,6 +1081,48 @@
         });
         
         window.addEventListener('beforeunload', stopCamera);
+        
+        async function saveToDatabase() {
+            // Get form data
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const company = document.getElementById('company').value.trim();
+            
+            // Validate required fields
+            if (!name) {
+                showAlert('Name is required to save to database', 'error');
+                return;
+            }
+            
+            showLoading('Saving to database...');
+            
+            try {
+                const formData = new FormData();
+                formData.append('name', name);
+                formData.append('email', email);
+                formData.append('phone', phone);
+                formData.append('company', company);
+                
+                const response = await fetch('/save', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Business card saved successfully to database!', 'success');
+                } else {
+                    showAlert(result.message || 'Failed to save business card', 'error');
+                }
+            } catch (error) {
+                console.error('Error saving to database:', error);
+                showAlert('Failed to save business card to database', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
     </script>
 </body>
 </html>

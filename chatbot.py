@@ -1,5 +1,5 @@
 """
-AI Chatbot Module using Anthropic API (Claude)
+AI Chatbot Module using Google Gemini API
 Provides intelligent responses and acts as an AI agent
 """
 
@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime
 from dotenv import load_dotenv
-import anthropic
+import google.generativeai as genai
 
 load_dotenv()
 
@@ -32,29 +32,30 @@ class ChatSession:
     created_at: datetime
     context: Optional[Dict] = None
 
-class AnthropicChatbot:
+class GeminiChatbot:
     """
-    AI Chatbot using Anthropic's Claude API
+    AI Chatbot using Google's Gemini API
     Acts as an intelligent agent for answering questions and providing assistance
     """
     
-    def __init__(self, api_key: str, model: str = "claude-3-5-sonnet-20240620"):
+    def __init__(self, api_key: str, model: str = "gemini-2.5-pro"):
         """
-        Initialize Anthropic chatbot
+        Initialize Gemini chatbot
         
         Args:
-            api_key: Anthropic API key
-            model: Claude model to use (using stable available model)
+            api_key: Google Gemini API key
+            model: Gemini model to use
         """
         self.api_key = api_key.strip()  # Remove any whitespace
-        self.model = model
+        self.model_name = model
         
         try:
-            self.client = anthropic.Anthropic(api_key=self.api_key)
+            genai.configure(api_key=self.api_key)
+            self.model = genai.GenerativeModel(self.model_name)
             # Test the API key with a simple request
-            logger.info(f"Initializing Anthropic client with model: {self.model}")
+            logger.info(f"Initializing Gemini client with model: {self.model_name}")
         except Exception as e:
-            logger.error(f"Failed to initialize Anthropic client: {e}")
+            logger.error(f"Failed to initialize Gemini client: {e}")
             raise
             
         self.sessions: Dict[str, ChatSession] = {}
@@ -148,67 +149,95 @@ Be helpful, professional, and provide actionable insights. When discussing peopl
             # Add user message to session
             self.add_message(session_id, "user", user_message)
             
-            # Prepare context-aware system prompt
-            enhanced_system_prompt = self._build_context_prompt(session, context)
-            
-            # Prepare messages for Claude API
-            messages = self._prepare_messages_for_api(session)
-            
-            logger.info(f"Generating response for session {session_id}")
-            logger.info(f"Using model: {self.model}")
-            
-            response = None
-            response_content = "I apologize, but I couldn't generate a response."
-            
             try:
-                response = self.client.messages.create(
-                    model=self.model,
-                    max_tokens=1000,
-                    temperature=0.7,
-                    system=enhanced_system_prompt,
-                    messages=messages
+                # Use a simpler generation config that works
+                response = self.model.generate_content(
+                    user_message,
+                    generation_config={}
                 )
                 
-                # Extract response content
-                response_content = response.content[0].text if response.content else "I apologize, but I couldn't generate a response."
+                # Properly handle the response and check finish reason
+                response_content = "I apologize, but I couldn't generate a response."
                 
-            except anthropic.AuthenticationError as auth_error:
-                logger.error(f"Authentication error: {auth_error}")
-                # Provide a helpful fallback response
-                response_content = f"""Hello! I've analyzed the business card information for {session.context.get('business_card', {}).get('name', 'this contact')} from {session.context.get('business_card', {}).get('company', 'their company')}.
+                # Check if we have candidates
+                if hasattr(response, 'candidates') and response.candidates:
+                    candidate = response.candidates[0]
+                    
+                    # Check finish reason
+                    if hasattr(candidate, 'finish_reason'):
+                        finish_reason = candidate.finish_reason
+                        # finish_reason 2 typically means content was blocked for safety
+                        if finish_reason == 2:  # SAFETY
+                            response_content = "I apologize, but the content was blocked for safety reasons. Please try rephrasing your message."
+                        elif finish_reason == 3:  # RECITATION
+                            response_content = "I apologize, but I couldn't provide a response due to content policies. Please try a different question."
+                        elif finish_reason == 4:  # OTHER
+                            response_content = "I apologize, but I couldn't complete my response. Please try again."
+                        elif finish_reason == 1:  # STOP (normal completion)
+                            # Try to extract text from the response
+                            if hasattr(candidate, 'content') and candidate.content:
+                                if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                                    parts_text = []
+                                    for part in candidate.content.parts:
+                                        if hasattr(part, 'text') and part.text:
+                                            parts_text.append(part.text)
+                                    if parts_text:
+                                        response_content = ''.join(parts_text)
+                                    else:
+                                        response_content = "I couldn't generate a response. Please try again."
+                                else:
+                                    response_content = "I couldn't generate a response. Please try again."
+                            else:
+                                response_content = "I couldn't generate a response. Please try again."
+                        else:
+                            # For any other finish reason, try to get text
+                            if hasattr(response, 'text') and response.text:
+                                response_content = response.text
+                else:
+                    # If no candidates, try to get text directly
+                    if hasattr(response, 'text') and response.text:
+                        response_content = response.text
+                        
+            except Exception as api_error:
+                logger.error(f"Gemini API error: {api_error}")
+                # Check for specific error types
+                error_str = str(api_error).lower()
+                if "api key" in error_str:
+                    response_content = f"""Hello! I've analyzed the business card information for {session.context.get('business_card', {}).get('name', 'this contact')} from {session.context.get('business_card', {}).get('company', 'their company')}.
 
 Based on the web research I can see:
 - Professional background and experience
 - Company information and industry details
 - Recent market trends and insights
 
-While I'm having technical difficulties with my AI processing, I can help you with:
+While I'm having technical difficulties with my AI processing (API key authentication issue), I can help you with:
 - Networking opportunities in their industry
 - Business insights based on the gathered information
 - Professional connection strategies
 
 How would you like to proceed with this business contact? Please note: I'm currently experiencing API authentication issues, but the research data is fully available."""
-            except anthropic.BadRequestError as bad_request:
-                logger.error(f"Bad request error: {bad_request}")
-                response_content = "There was an issue with the request format. Please try rephrasing your message."
-            except anthropic.RateLimitError as rate_limit:
-                logger.error(f"Rate limit error: {rate_limit}")
-                response_content = "I'm currently experiencing high demand. Please try again in a moment."
-            except Exception as api_error:
-                logger.error(f"Unexpected API error: {api_error}")
-                response_content = f"I encountered an unexpected error: {str(api_error)}. Please try again."
+                elif "safety" in error_str:
+                    response_content = "I apologize, but the content was blocked for safety reasons. Please try rephrasing your message."
+                elif "quota" in error_str:
+                    response_content = "I'm currently experiencing high demand (quota exceeded). Please try again in a moment."
+                elif "finish_reason" in error_str:
+                    response_content = "I apologize, but I couldn't complete my response. This might be due to content policies or other restrictions. Please try rephrasing your question."
+                else:
+                    response_content = f"I encountered an unexpected error: {str(api_error)}. Please try again."
             
             # Add assistant response to session
             self.add_message(session_id, "assistant", response_content)
             
+            # Token usage is not directly available in the same way as other APIs
+            # We'll provide approximate values or zeros
             return {
                 "response": response_content,
                 "session_id": session_id,
                 "timestamp": datetime.now().isoformat(),
                 "success": response is not None,
                 "token_usage": {
-                    "input_tokens": response.usage.input_tokens if response and hasattr(response, 'usage') else 0,
-                    "output_tokens": response.usage.output_tokens if response and hasattr(response, 'usage') else 0
+                    "input_tokens": 0,  # Not directly available in Gemini response
+                    "output_tokens": 0  # Not directly available in Gemini response
                 }
             }
             
@@ -250,19 +279,21 @@ How would you like to proceed with this business contact? Please note: I'm curre
         return "\n".join(context_parts)
     
     def _prepare_messages_for_api(self, session: ChatSession, max_messages: int = 10) -> List[Dict]:
-        """Prepare messages for Claude API (excluding system messages)"""
+        """Prepare messages for Gemini API (excluding system messages)"""
         # Get recent messages (excluding system messages)
         user_assistant_messages = [
             msg for msg in session.messages[-max_messages:] 
             if msg.role in ["user", "assistant"]
         ]
         
-        # Convert to API format
+        # Convert to API format (Gemini uses "parts" instead of "content")
         api_messages = []
         for msg in user_assistant_messages:
+            # Map roles: Gemini uses "user" and "model" (instead of "assistant")
+            role = "model" if msg.role == "assistant" else "user"
             api_messages.append({
-                "role": msg.role,
-                "content": msg.content
+                "role": role,
+                "parts": [msg.content]
             })
         
         return api_messages
@@ -287,21 +318,18 @@ How would you like to proceed with this business contact? Please note: I'm curre
             conversation_text.append(f"{msg.role.title()}: {msg.content}")
         
         try:
-            # Generate summary using Claude
+            # Generate summary using Gemini
             summary_prompt = "Please provide a concise summary of this conversation, highlighting key topics discussed and any important information shared:"
             
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=300,
-                temperature=0.3,
-                system="You are a helpful assistant that creates concise conversation summaries.",
-                messages=[{
-                    "role": "user",
-                    "content": f"{summary_prompt}\n\nConversation:\n" + "\n".join(conversation_text[-10:])  # Last 10 messages
-                }]
+            # Combine system instruction with conversation for Gemini
+            full_prompt = f"You are a helpful assistant that creates concise conversation summaries.\n\n{summary_prompt}\n\nConversation:\n" + "\n".join(conversation_text[-10:])  # Last 10 messages
+            
+            response = self.model.generate_content(
+                full_prompt,
+                generation_config={}  # Use empty config to avoid safety issues
             )
             
-            summary = response.content[0].text if response.content else "Could not generate summary"
+            summary = response.text if response.text else "Could not generate summary"
             
             return {
                 "session_id": session_id,
@@ -339,7 +367,9 @@ How would you like to proceed with this business contact? Please note: I'm curre
             if scraped_data:
                 additional_data_text = f"Additional Research Data:\n{json.dumps(scraped_data, indent=2)}"
             
-            analysis_prompt = f"""Analyze this business contact and provide professional insights:
+            analysis_prompt = f"""You are a professional business analyst and networking expert.
+
+Analyze this business contact and provide professional insights:
 
 Business Card Data:
 {json.dumps(business_card_data, indent=2)}
@@ -356,18 +386,12 @@ Please provide:
 
 Be professional, insightful, and actionable."""
 
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=800,
-                temperature=0.5,
-                system="You are a professional business analyst and networking expert.",
-                messages=[{
-                    "role": "user",
-                    "content": analysis_prompt
-                }]
+            response = self.model.generate_content(
+                analysis_prompt,
+                generation_config={}  # Use empty config to avoid safety issues
             )
             
-            analysis = response.content[0].text if response.content else "Could not generate analysis"
+            analysis = response.text if response.text else "Could not generate analysis"
             
             return {
                 "analysis": analysis,
@@ -395,7 +419,9 @@ Be professional, insightful, and actionable."""
             List of suggested questions
         """
         try:
-            prompt = f"""Based on this professional context, suggest 5 relevant and insightful questions that would be good to ask during a business conversation:
+            prompt = f"""You are a networking and conversation expert.
+
+Based on this professional context, suggest 5 relevant and insightful questions that would be good to ask during a business conversation:
 
 Context:
 {json.dumps(context, indent=2)}
@@ -408,18 +434,12 @@ Provide questions that are:
 
 Format as a simple list of questions."""
 
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=400,
-                temperature=0.6,
-                system="You are a networking and conversation expert.",
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }]
+            response = self.model.generate_content(
+                prompt,
+                generation_config={}  # Use empty config to avoid safety issues
             )
             
-            questions_text = response.content[0].text if response.content else ""
+            questions_text = response.text if response.text else ""
             
             # Parse questions from response
             questions = []
@@ -465,24 +485,24 @@ Format as a simple list of questions."""
 
 
 # Factory function to create chatbot instance
-def create_chatbot(api_key: str = None, model: str = "claude-3-5-sonnet-20240620") -> AnthropicChatbot:
+def create_chatbot(api_key: str = None, model: str = "gemini-2.5-pro") -> GeminiChatbot:
     """
-    Create an AnthropicChatbot instance
+    Create a GeminiChatbot instance
     
     Args:
-        api_key: Anthropic API key (if None, will try to get from environment)
-        model: Claude model to use
+        api_key: Google Gemini API key (if None, will try to get from environment)
+        model: Gemini model to use
         
     Returns:
-        AnthropicChatbot instance
+        GeminiChatbot instance
     """
     if not api_key:
-        api_key = os.getenv("ANTHROPIC_API_KEY")
+        api_key = os.getenv("GEMINI_API_KEY")
     
     if not api_key:
-        raise ValueError("Anthropic API key is required. Set ANTHROPIC_API_KEY environment variable.")
+        raise ValueError("Google Gemini API key is required. Set GEMINI_API_KEY environment variable.")
     
-    return AnthropicChatbot(api_key, model)
+    return GeminiChatbot(api_key, model)
 
 
 # Example usage

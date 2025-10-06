@@ -562,9 +562,15 @@
                             <div class="field-hint" id="company-hint" style="display: none;">✅ Auto-filled from scanned card</div>
                         </div>
 
-                        <div style="display: flex; gap: 15px; margin-top: 30px;">
-                            <button type="button" class="btn btn-secondary" onclick="resetForm()">Clear Form</button>
-                            <button type="submit" class="btn">Continue to AI Chat →</button>
+                        <!-- Hidden field to store web-scraped data -->
+                        <input type="hidden" id="webInfoData" name="web_info">
+
+                        <div style="display: flex; gap: 15px; margin-top: 30px; flex-wrap: wrap;">
+                            <button type="button" class="btn btn-secondary" onclick="resetForm()" style="flex: 1; min-width: 120px;">Clear Form</button>
+                            <button type="button" class="btn" onclick="saveToDatabase()" style="background: #28a745; flex: 1; min-width: 120px;">💾 Save Card</button>
+                            <button type="button" class="btn" onclick="saveWebInfo()" style="background: #17a2b8; flex: 1; min-width: 120px;">🌐 Save Web Info</button>
+                            <button type="button" class="btn" onclick="saveAll()" style="background: #6f42c1; flex: 1; min-width: 120px;">💾 Save All</button>
+                            <button type="submit" class="btn" style="flex: 1; min-width: 120px;">Continue to AI Chat →</button>
                         </div>
                     </form>
                 </div>
@@ -833,6 +839,38 @@
                 return;
             }
             
+            // First, let's try to get web-scraped data
+            const name = document.getElementById('name').value.trim();
+            const company = document.getElementById('company').value.trim();
+            
+            if (name) {
+                try {
+                    // Attempt to get web-scraped data
+                    const scrapeResponse = await fetch('/scrape-info', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            name: name,
+                            company: company
+                        })
+                    });
+                    
+                    if (scrapeResponse.ok) {
+                        const scrapeResult = await scrapeResponse.json();
+                        if (scrapeResult.success && scrapeResult.web_info) {
+                            // Store web info in hidden field
+                            document.getElementById('webInfoData').value = JSON.stringify(scrapeResult.web_info);
+                            showAlert('Web information gathered successfully!', 'success');
+                        }
+                    }
+                } catch (scrapeError) {
+                    console.error('Web scraping error:', scrapeError);
+                    // Continue even if web scraping fails
+                }
+            }
+            
             const formData = new FormData(form);
             formData.append('source', 'manual');
             
@@ -917,33 +955,223 @@
         
         // Cleanup on page unload
         window.addEventListener('beforeunload', stopCamera);
-    </script>
-</body>
-</html>
-            } finally {
-                loadingIndicator.style.display = 'none';
-                uploadBtn.disabled = false;
+        
+        async function saveToDatabase() {
+            // Get form data
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const company = document.getElementById('company').value.trim();
+            
+            // Validate required fields
+            if (!name) {
+                showAlert('Name is required to save to database', 'error');
+                return;
             }
-        });
-        
-        // Manual form submission
-        document.querySelector('#manualForm form').addEventListener('submit', function() {
-            loadingIndicator.style.display = 'block';
-        });
-        
-        // Utility functions
-        function showSuccess(message) {
-            const el = document.getElementById('successMessage');
-            el.textContent = message;
-            el.style.display = 'block';
-            setTimeout(() => el.style.display = 'none', 5000);
+            
+            showLoading('Saving to database...');
+            
+            try {
+                const formData = new FormData();
+                formData.append('name', name);
+                formData.append('email', email);
+                formData.append('phone', phone);
+                formData.append('company', company);
+                
+                const response = await fetch('/save', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Business card saved successfully to database!', 'success');
+                } else {
+                    showAlert(result.message || 'Failed to save business card', 'error');
+                }
+            } catch (error) {
+                console.error('Error saving to database:', error);
+                showAlert('Failed to save business card to database', 'error');
+            } finally {
+                hideLoading();
+            }
         }
         
-        function showError(message) {
-            const el = document.getElementById('errorMessage');
-            el.textContent = message;
-            el.style.display = 'block';
-            setTimeout(() => el.style.display = 'none', 5000);
+        async function saveWebInfo() {
+            // Get form data
+            const name = document.getElementById('name').value.trim();
+            const company = document.getElementById('company').value.trim();
+            
+            // Validate required fields
+            if (!name) {
+                showAlert('Name is required to save web information', 'error');
+                return;
+            }
+            
+            // Check if web info exists in hidden field
+            const webInfoElement = document.getElementById('webInfoData');
+            let webInfoData = null;
+            
+            if (webInfoElement && webInfoElement.value) {
+                // Use existing web info
+                webInfoData = webInfoElement.value;
+            } else {
+                // Try to get web info by scraping
+                showLoading('Gathering web information...');
+                try {
+                    const scrapeResponse = await fetch('/scrape-info', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            name: name,
+                            company: company
+                        })
+                    });
+                    
+                    if (scrapeResponse.ok) {
+                        const scrapeResult = await scrapeResponse.json();
+                        if (scrapeResult.success && scrapeResult.web_info) {
+                            // Store web info in hidden field for future use
+                            webInfoData = JSON.stringify(scrapeResult.web_info);
+                            document.getElementById('webInfoData').value = webInfoData;
+                            showAlert('Web information gathered successfully!', 'success');
+                        } else {
+                            showAlert('Failed to gather web information: ' + (scrapeResult.message || 'Unknown error'), 'error');
+                            hideLoading();
+                            return;
+                        }
+                    } else {
+                        showAlert('Failed to gather web information. Server error.', 'error');
+                        hideLoading();
+                        return;
+                    }
+                } catch (scrapeError) {
+                    console.error('Web scraping error:', scrapeError);
+                    showAlert('Failed to gather web information: ' + scrapeError.message, 'error');
+                    hideLoading();
+                    return;
+                }
+            }
+            
+            if (!webInfoData) {
+                showAlert('No web information available to save.', 'error');
+                hideLoading();
+                return;
+            }
+            
+            showLoading('Saving web information to database...');
+            
+            try {
+                const formData = new FormData();
+                formData.append('name', name);
+                formData.append('company', company);
+                formData.append('web_info', webInfoData);
+                
+                const response = await fetch('/save-web-info', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Web-scraped information saved successfully to database!', 'success');
+                } else {
+                    showAlert(result.message || 'Failed to save web information', 'error');
+                }
+            } catch (error) {
+                console.error('Error saving web info to database:', error);
+                showAlert('Failed to save web information to database: ' + error.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        async function saveAll() {
+            // Get form data
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const company = document.getElementById('company').value.trim();
+            
+            // Validate required fields
+            if (!name) {
+                showAlert('Name is required to save information', 'error');
+                return;
+            }
+            
+            // Check if web info exists in hidden field
+            const webInfoElement = document.getElementById('webInfoData');
+            let webInfoData = null;
+            
+            if (webInfoElement && webInfoElement.value) {
+                // Use existing web info
+                webInfoData = webInfoElement.value;
+            } else {
+                // Try to get web info by scraping
+                showLoading('Gathering web information...');
+                try {
+                    const scrapeResponse = await fetch('/scrape-info', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            name: name,
+                            company: company
+                        })
+                    });
+                    
+                    if (scrapeResponse.ok) {
+                        const scrapeResult = await scrapeResponse.json();
+                        if (scrapeResult.success && scrapeResult.web_info) {
+                            // Store web info in hidden field for future use
+                            webInfoData = JSON.stringify(scrapeResult.web_info);
+                            document.getElementById('webInfoData').value = webInfoData;
+                            showAlert('Web information gathered successfully!', 'success');
+                        }
+                    } else {
+                        showAlert('Failed to gather web information. Continuing with business card only.', 'error');
+                    }
+                } catch (scrapeError) {
+                    console.error('Web scraping error:', scrapeError);
+                    showAlert('Failed to gather web information. Continuing with business card only.', 'error');
+                }
+            }
+            
+            showLoading('Saving all information to database...');
+            
+            try {
+                const formData = new FormData();
+                formData.append('name', name);
+                formData.append('email', email);
+                formData.append('phone', phone);
+                formData.append('company', company);
+                if (webInfoData) {
+                    formData.append('web_info', webInfoData);
+                }
+                
+                const response = await fetch('/save-all', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('All information saved successfully to database!', 'success');
+                } else {
+                    showAlert(result.message || 'Failed to save information', 'error');
+                }
+            } catch (error) {
+                console.error('Error saving all information to database:', error);
+                showAlert('Failed to save information to database: ' + error.message, 'error');
+            } finally {
+                hideLoading();
+            }
         }
     </script>
 </body>

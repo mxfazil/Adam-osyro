@@ -27,7 +27,7 @@ from ocr import (
 
 # Import new modules
 from webscraper import TavilyWebScraper, create_scraper
-from chatbot import AnthropicChatbot, create_chatbot
+from chatbot import GeminiChatbot, create_chatbot
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ class ChatResponse(BaseModel):
 
 # Global instances
 web_scraper: Optional[TavilyWebScraper] = None
-ai_chatbot: Optional[AnthropicChatbot] = None
+ai_chatbot: Optional[GeminiChatbot] = None
 
 def initialize_enhanced_services():
     """Initialize web scraper and chatbot services"""
@@ -78,12 +78,12 @@ def initialize_enhanced_services():
             logger.warning("Tavily API key not found - web scraping disabled")
         
         # Initialize chatbot
-        anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-        if anthropic_api_key:
-            ai_chatbot = create_chatbot(anthropic_api_key)
-            logger.info("Anthropic chatbot initialized successfully")
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if gemini_api_key:
+            ai_chatbot = create_chatbot(gemini_api_key)
+            logger.info("Gemini chatbot initialized successfully")
         else:
-            logger.warning("Anthropic API key not found - chatbot disabled")
+            logger.warning("Gemini API key not found - chatbot disabled")
             
     except Exception as e:
         logger.error(f"Error initializing enhanced services: {e}")
