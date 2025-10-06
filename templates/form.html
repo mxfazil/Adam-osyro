@@ -17,7 +17,7 @@
             min-height: 100vh;
         }
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
             background: white;
             border-radius: 12px;
@@ -40,6 +40,83 @@
         }
         .content {
             padding: 30px;
+        }
+        .main-form {
+            display: flex;
+            gap: 30px;
+            align-items: flex-start;
+        }
+        .scan-section {
+            flex: 1;
+            min-width: 300px;
+        }
+        .details-section {
+            flex: 1;
+            min-width: 300px;
+        }
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .section-header h3 {
+            color: #333;
+            margin: 0;
+        }
+        .section-number {
+            background: #667eea;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .scan-hint {
+            background: #f8f9ff;
+            border: 1px solid #e0e7ff;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #4f46e5;
+            font-size: 14px;
+        }
+        .scan-hint .hint-icon {
+            font-size: 16px;
+            margin-right: 8px;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .main-form {
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            .scan-section, .details-section {
+                min-width: auto;
+            }
+            
+            .container {
+                margin: 10px;
+                border-radius: 8px;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+        }
+        
+        /* Auto-filled field styling */
+        input.auto-filled {
+            background-color: #f0f9ff;
+            border-color: #0ea5e9;
         }
         .tabs {
             display: flex;
@@ -408,7 +485,7 @@
     <div class="container">
         <div class="header">
             <h1>Business Card Scanner</h1>
-            <p>Enter details manually or scan a business card to auto-fill</p>
+            <p>Scan your business card to auto-fill details, then review and continue to AI chat</p>
         </div>
 
         <div class="content">
@@ -417,92 +494,116 @@
                 <span id="errorMessage"></span>
             </div>
 
-            <div class="ocr-section">
-                <h3 style="margin-bottom: 15px; color: #333;">Quick Fill with OCR</h3>
-                
-                <div class="tabs">
-                    <button class="tab active" data-tab="upload">Upload Image</button>
-                    <button class="tab" data-tab="camera">Live Camera</button>
-                </div>
-
-                <div id="upload-tab" class="tab-content active">
-                    <div class="upload-area" id="uploadArea">
-                        <div class="upload-icon">📄</div>
-                        <p style="margin-bottom: 10px; color: #666;">Click to upload or drag and drop</p>
-                        <p style="font-size: 12px; color: #999;">Supported: JPG, PNG, JPEG</p>
-                        <input type="file" id="fileInput" accept="image/*">
+            <div class="main-form">
+                <!-- Step 1: Scan Business Card -->
+                <div class="scan-section">
+                    <div class="section-header">
+                        <span class="section-number">1</span>
+                        <h3>Scan Business Card</h3>
                     </div>
-                </div>
+                    
+                    <div class="scan-hint">
+                        <span class="hint-icon">💡</span>
+                        <strong>Quick Start:</strong> Upload or capture your business card to auto-fill the details below. You can edit any information afterwards.
+                    </div>
 
-                <div id="camera-tab" class="tab-content">
-                    <div class="camera-section">
-                        <div class="camera-info">
-                            Tip: Position the business card within the frame. The camera will automatically detect and capture when the card is in focus.
+                    <div class="tabs">
+                        <button class="tab active" data-tab="upload">📷 Upload Image</button>
+                        <button class="tab" data-tab="camera">📱 Live Camera</button>
+                    </div>
+
+                    <div id="upload-tab" class="tab-content active">
+                        <div class="upload-area" id="uploadArea">
+                            <div class="upload-icon">📄</div>
+                            <p style="margin-bottom: 10px; color: #666;">Click to upload or drag and drop</p>
+                            <p style="font-size: 12px; color: #999;">Supported: JPG, PNG, JPEG</p>
+                            <input type="file" id="fileInput" accept="image/*">
                         </div>
-                        
-                        <div class="video-container" id="videoContainer" style="display: none;">
-                            <video id="video" autoplay playsinline muted></video>
-                            <div class="video-overlay">
-                                <div class="focus-frame">
-                                    <div class="focus-corners top-left"></div>
-                                    <div class="focus-corners top-right"></div>
-                                    <div class="focus-corners bottom-left"></div>
-                                    <div class="focus-corners bottom-right"></div>
-                                </div>
-                                <div class="camera-status" id="cameraStatus">
-                                    <span class="pulse"></span>
-                                    <span id="statusText">Initializing...</span>
+                    </div>
+
+                    <div id="camera-tab" class="tab-content">
+                        <div class="camera-section">
+                            <div class="camera-info">
+                                Position the business card within the frame. The camera will automatically detect and capture when the card is in focus.
+                            </div>
+                            
+                            <div class="video-container" id="videoContainer" style="display: none;">
+                                <video id="video" autoplay playsinline muted></video>
+                                <div class="video-overlay">
+                                    <div class="focus-frame">
+                                        <div class="focus-corners top-left"></div>
+                                        <div class="focus-corners top-right"></div>
+                                        <div class="focus-corners bottom-left"></div>
+                                        <div class="focus-corners bottom-right"></div>
+                                    </div>
+                                    <div class="camera-status" id="cameraStatus">
+                                        <span class="pulse"></span>
+                                        <span id="statusText">Initializing...</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <img id="previewImage" class="preview-image" alt="Captured image">
-                        
-                        <div class="camera-controls">
-                            <button id="startCamera" class="btn-primary">Start Camera</button>
-                            <button id="capture" class="btn-success" style="display: none;">Manual Capture</button>
-                            <button id="retake" class="btn-warning" style="display: none;">Retake</button>
-                            <button id="stopCamera" class="btn-danger" style="display: none;">Stop Camera</button>
+                            
+                            <img id="previewImage" class="preview-image" alt="Captured image">
+                            
+                            <div class="camera-controls">
+                                <button id="startCamera" class="btn-primary">Start Camera</button>
+                                <button id="capture" class="btn-success" style="display: none;">Manual Capture</button>
+                                <button id="retake" class="btn-warning" style="display: none;">Retake</button>
+                                <button id="stopCamera" class="btn-danger" style="display: none;">Stop Camera</button>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="form-section">
-                <h3 style="margin-bottom: 20px; color: #333;">Business Card Details</h3>
-                
-                <form id="businessCardForm">
-                    <div class="form-group">
-                        <label for="name">Name <span class="required">*</span></label>
-                        <input type="text" id="name" name="name" required>
-                        <div class="validation-error" id="name-error">Name is required</div>
-                        <div class="field-hint" id="name-hint" style="display: none;">Auto-filled from image</div>
+                <!-- Step 2: Review & Edit Details -->
+                <div class="details-section">
+                    <div class="section-header">
+                        <span class="section-number">2</span>
+                        <h3>Review & Edit Details</h3>
                     </div>
+                    
+                    <form id="businessCardForm">
+                        <div class="form-group">
+                            <label for="name">Name <span class="required">*</span></label>
+                            <input type="text" id="name" name="name" required placeholder="Enter name or scan card to auto-fill">
+                            <div class="validation-error" id="name-error">Name is required</div>
+                            <div class="field-hint" id="name-hint" style="display: none;">✅ Auto-filled from scanned card</div>
+                        </div>
 
-                    <div class="form-group">
-                        <label for="email">Email</label>
-                        <input type="email" id="email" name="email">
-                        <div class="validation-error" id="email-error">Please enter a valid email</div>
-                        <div class="field-hint" id="email-hint" style="display: none;">Auto-filled from image</div>
-                    </div>
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" id="email" name="email" placeholder="Enter email or scan card to auto-fill">
+                            <div class="validation-error" id="email-error">Please enter a valid email</div>
+                            <div class="field-hint" id="email-hint" style="display: none;">✅ Auto-filled from scanned card</div>
+                        </div>
 
-                    <div class="form-group">
-                        <label for="phone">Phone Number</label>
-                        <input type="text" id="phone" name="phone">
-                        <div class="field-hint" id="phone-hint" style="display: none;">Auto-filled from image</div>
-                    </div>
+                        <div class="form-group">
+                            <label for="phone">Phone Number</label>
+                            <input type="text" id="phone" name="phone" placeholder="Enter phone or scan card to auto-fill">
+                            <div class="field-hint" id="phone-hint" style="display: none;">✅ Auto-filled from scanned card</div>
+                        </div>
 
-                    <div class="form-group">
-                        <label for="company">Company</label>
-                        <input type="text" id="company" name="company">
-                        <div class="field-hint" id="company-hint" style="display: none;">Auto-filled from image</div>
-                    </div>
+                        <div class="form-group">
+                            <label for="company">Company</label>
+                            <input type="text" id="company" name="company" placeholder="Enter company or scan card to auto-fill">
+                            <div class="field-hint" id="company-hint" style="display: none;">✅ Auto-filled from scanned card</div>
+                        </div>
 
-                    <div class="button-group">
-                        <button type="button" class="btn-secondary" onclick="resetForm()">Clear Form</button>
-                        <button type="submit" class="btn-primary">Save to Database</button>
-                    </div>
-                </form>
+                        <div class="auto-fill-status" id="autoFillStatus" style="display: none;">
+                            <div style="background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 8px; padding: 12px; margin-bottom: 20px;">
+                                <strong style="color: #0369a1;">📋 Card Scanned Successfully!</strong>
+                                <p style="margin: 5px 0 0 0; font-size: 14px; color: #0369a1;">
+                                    Review the auto-filled information below and make any necessary edits.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="button-group">
+                            <button type="button" class="btn-secondary" onclick="resetForm()">Clear Form</button>
+                            <button type="submit" class="btn-primary">Continue to AI Chat →</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
@@ -811,6 +912,7 @@
 
         function fillFormFields(fields) {
             const fieldNames = ['name', 'email', 'phone', 'company'];
+            let hasAutoFilled = false;
             
             fieldNames.forEach(field => {
                 const input = document.getElementById(field);
@@ -822,8 +924,23 @@
                     if (hint) {
                         hint.style.display = 'block';
                     }
+                    hasAutoFilled = true;
                 }
             });
+            
+            // Show auto-fill status if any field was filled
+            if (hasAutoFilled) {
+                const autoFillStatus = document.getElementById('autoFillStatus');
+                if (autoFillStatus) {
+                    autoFillStatus.style.display = 'block';
+                }
+                
+                // Scroll to the form section for better UX
+                const detailsSection = document.querySelector('.details-section');
+                if (detailsSection) {
+                    detailsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
         }
 
         const form = document.getElementById('businessCardForm');
@@ -859,24 +976,29 @@
             if (!isValid) return;
             
             const formData = new FormData(form);
+            formData.append('source', 'manual'); // Add source parameter
             
-            showLoading('Saving to database...');
+            showLoading('Processing information and starting AI chat...');
             
             try {
-                const response = await fetch('/save', {
+                const response = await fetch('/process-info', {
                     method: 'POST',
                     body: formData
                 });
                 
+                // The endpoint redirects to chat, so we handle the redirect
+                if (response.redirected) {
+                    window.location.href = response.url;
+                    return;
+                }
+                
                 const result = await response.json();
                 
                 if (result.success) {
-                    showAlert('Business card saved successfully!', 'success');
-                    setTimeout(() => {
-                        resetForm();
-                    }, 2000);
+                    showAlert('Information processed successfully! Redirecting to chat...', 'success');
+                    // Handle any additional response data here if needed
                 } else {
-                    showAlert(result.error || 'Failed to save', 'error');
+                    showAlert(result.error || 'Failed to process information', 'error');
                 }
             } catch (error) {
                 console.error('Error:', error);
@@ -897,6 +1019,13 @@
             document.querySelectorAll('.validation-error').forEach(error => {
                 error.style.display = 'none';
             });
+            
+            // Hide auto-fill status
+            const autoFillStatus = document.getElementById('autoFillStatus');
+            if (autoFillStatus) {
+                autoFillStatus.style.display = 'none';
+            }
+            
             hideAlert();
         }
         

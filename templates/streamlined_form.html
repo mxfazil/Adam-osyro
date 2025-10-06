@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Business Card OCR</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .unified-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            align-items: start;
+        }
+        
+        .scan-section {
+            background: #f8fafc;
+            border-radius: 15px;
+            padding: 30px;
+            border: 2px solid #e2e8f0;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .step-number {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            color: #1e293b;
+            margin: 0;
+        }
+        
+        .scan-tabs {
+            display: flex;
+            margin-bottom: 25px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            padding: 5px;
+        }
+        
+        .scan-tab {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            background: transparent;
+            color: #64748b;
+            cursor: pointer;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .scan-tab.active {
+            background: white;
+            color: #4f46e5;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .form-section.active {
+            display: block;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 15px;
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+        
+        .upload-area {
+            border: 3px dashed #cbd5e1;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: white;
+        }
+        
+        .upload-area:hover, .upload-area.dragover {
+            border-color: #4f46e5;
+            background-color: #f8faff;
+        }
+        
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: #64748b;
+        }
+        
+        .upload-text {
+            font-size: 1.1rem;
+            color: #64748b;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .upload-hint {
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .camera-section {
+            text-align: center;
+        }
+        
+        .camera-info {
+            background: #e0f2fe;
+            color: #0277bd;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto 20px;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            display: none;
+        }
+        
+        #video {
+            width: 100%;
+            display: block;
+        }
+        
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+        
+        .focus-frame {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 60%;
+            border: 2px solid #4f46e5;
+            border-radius: 10px;
+        }
+        
+        .camera-status {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .details-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            border: 2px solid #e2e8f0;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.95rem;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+        
+        .form-input.auto-filled {
+            background: #f0fdf4;
+            border-color: #22c55e;
+        }
+        
+        .field-hint {
+            margin-top: 5px;
+            font-size: 0.85rem;
+            color: #22c55e;
+            font-weight: 500;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            padding: 18px 30px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 20px;
+        }
+        
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(79, 70, 229, 0.3);
+        }
+        
+        .btn:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-secondary {
+            background: #6b7280;
+            margin-right: 10px;
+            width: auto;
+            min-width: 120px;
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: #4b5563;
+        }
+        
+        .camera-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        
+        .camera-controls .btn {
+            width: auto;
+            margin: 0;
+            min-width: 120px;
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .loading-overlay.active {
+            display: flex;
+        }
+        
+        .loading-content {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 400px;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #4f46e5;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .auto-fill-status {
+            background: #f0f9ff;
+            border: 2px solid #0ea5e9;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+            display: none;
+        }
+        
+        .required {
+            color: #ef4444;
+        }
+        
+        .alert {
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: 500;
+            display: none;
+        }
+        
+        .alert.success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+        
+        .alert.error {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+        
+        .alert.show {
+            display: block;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .unified-form {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .scan-section, .details-section {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                🤖 Smart Business Card OCR
+            </h1>
+            <p>Scan your business card and chat with AI about your contacts</p>
+        </div>
+        
+        <div class="content">
+            <!-- Success/Error Alerts -->
+            <div class="alert success" id="alertSuccess"></div>
+            <div class="alert error" id="alertError">
+                <span id="errorMessage"></span>
+            </div>
+            
+            <!-- Unified Form Layout -->
+            <div class="unified-form">
+                <!-- Step 1: Scan Business Card -->
+                <div class="scan-section">
+                    <div class="section-header">
+                        <div class="step-number">1</div>
+                        <h3 class="section-title">Scan Business Card</h3>
+                    </div>
+                    
+                    <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 15px; margin-bottom: 25px; color: #856404;">
+                        <strong>💡 Quick Start:</strong> Upload or capture your business card to auto-fill the form. You can edit the details afterwards.
+                    </div>
+
+                    <div class="scan-tabs">
+                        <button class="scan-tab active" data-tab="upload">📷 Upload Image</button>
+                        <button class="scan-tab" data-tab="camera">📱 Live Camera</button>
+                    </div>
+
+                    <!-- Upload Tab -->
+                    <div id="upload-tab" class="tab-content active">
+                        <div class="upload-area" id="uploadArea">
+                            <div class="upload-icon">📄</div>
+                            <div class="upload-text">Click to upload or drag and drop</div>
+                            <div class="upload-hint">Supported: JPG, PNG, JPEG</div>
+                            <input type="file" id="fileInput" class="file-input" accept="image/*">
+                        </div>
+                    </div>
+
+                    <!-- Camera Tab -->
+                    <div id="camera-tab" class="tab-content">
+                        <div class="camera-section">
+                            <div class="camera-info">
+                                📸 Position the business card within the frame for automatic capture
+                            </div>
+                            
+                            <div class="video-container" id="videoContainer">
+                                <video id="video" autoplay playsinline muted></video>
+                                <div class="video-overlay">
+                                    <div class="focus-frame"></div>
+                                    <div class="camera-status" id="cameraStatus">
+                                        <span id="statusText">Ready to scan</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="camera-controls">
+                                <button id="startCamera" class="btn">Start Camera</button>
+                                <button id="capture" class="btn" style="display: none;">Capture</button>
+                                <button id="stopCamera" class="btn btn-secondary" style="display: none;">Stop</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Review & Edit Details -->
+                <div class="details-section">
+                    <div class="section-header">
+                        <div class="step-number">2</div>
+                        <h3 class="section-title">Review & Edit Details</h3>
+                    </div>
+                    
+                    <div class="auto-fill-status" id="autoFillStatus">
+                        <strong style="color: #0369a1;">📋 Card Scanned Successfully!</strong>
+                        <p style="margin: 8px 0 0 0; font-size: 0.9rem; color: #0369a1;">
+                            Review the auto-filled information below and make any necessary edits.
+                        </p>
+                    </div>
+                    
+                    <form id="businessCardForm">
+                        <div class="form-group">
+                            <label class="form-label" for="name">Name <span class="required">*</span></label>
+                            <input type="text" id="name" name="name" class="form-input" required 
+                                   placeholder="Enter name or scan card to auto-fill">
+                            <div class="field-hint" id="name-hint" style="display: none;">✅ Auto-filled from scanned card</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="email">Email</label>
+                            <input type="email" id="email" name="email" class="form-input" 
+                                   placeholder="Enter email or scan card to auto-fill">
+                            <div class="field-hint" id="email-hint" style="display: none;">✅ Auto-filled from scanned card</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="phone">Phone Number</label>
+                            <input type="text" id="phone" name="phone" class="form-input" 
+                                   placeholder="Enter phone or scan card to auto-fill">
+                            <div class="field-hint" id="phone-hint" style="display: none;">✅ Auto-filled from scanned card</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="company">Company</label>
+                            <input type="text" id="company" name="company" class="form-input" 
+                                   placeholder="Enter company or scan card to auto-fill">
+                            <div class="field-hint" id="company-hint" style="display: none;">✅ Auto-filled from scanned card</div>
+                        </div>
+
+                        <div style="display: flex; gap: 15px; margin-top: 30px;">
+                            <button type="button" class="btn btn-secondary" onclick="resetForm()">Clear Form</button>
+                            <button type="submit" class="btn">Continue to AI Chat →</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p id="loadingText">Processing image...</p>
+        </div>
+    </div>
+
+    <script>
+        let stream = null;
+        let isProcessing = false;
+
+        // Tab switching functionality
+        document.querySelectorAll('.scan-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+                
+                // Update tab states
+                document.querySelectorAll('.scan-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                // Update content visibility
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                document.getElementById(`${tabName}-tab`).classList.add('active');
+                
+                // Stop camera if switching away from camera tab
+                if (tabName !== 'camera' && stream) {
+                    stopCamera();
+                }
+            });
+        });
+
+        // Upload area functionality
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                processImage(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                processImage(e.target.files[0]);
+            }
+        });
+
+        // Camera functionality
+        const video = document.getElementById('video');
+        const videoContainer = document.getElementById('videoContainer');
+        const startCameraBtn = document.getElementById('startCamera');
+        const captureBtn = document.getElementById('capture');
+        const stopCameraBtn = document.getElementById('stopCamera');
+        const cameraStatus = document.getElementById('cameraStatus');
+        const statusText = document.getElementById('statusText');
+
+        startCameraBtn.addEventListener('click', async () => {
+            try {
+                statusText.textContent = 'Requesting camera access...';
+                
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    } 
+                });
+                
+                video.srcObject = stream;
+                videoContainer.style.display = 'block';
+                startCameraBtn.style.display = 'none';
+                captureBtn.style.display = 'inline-block';
+                stopCameraBtn.style.display = 'inline-block';
+                
+                statusText.textContent = 'Camera ready - Position your card';
+                
+            } catch (error) {
+                console.error('Camera error:', error);
+                showAlert('Camera access denied or not available', 'error');
+                statusText.textContent = 'Camera error';
+            }
+        });
+
+        captureBtn.addEventListener('click', () => {
+            captureImage();
+        });
+
+        stopCameraBtn.addEventListener('click', () => {
+            stopCamera();
+        });
+
+        function captureImage() {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+            
+            canvas.toBlob((blob) => {
+                processCameraImage(blob);
+            }, 'image/jpeg', 0.8);
+        }
+
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                stream = null;
+            }
+            videoContainer.style.display = 'none';
+            startCameraBtn.style.display = 'inline-block';
+            captureBtn.style.display = 'none';
+            stopCameraBtn.style.display = 'none';
+            statusText.textContent = 'Ready to scan';
+            isProcessing = false;
+        }
+
+        // Image processing
+        async function processImage(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            showLoading('Extracting information from image...');
+            
+            try {
+                const response = await fetch('/extract', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    fillFormFields(result.fields);
+                    showAlert('Information extracted successfully!', 'success');
+                } else {
+                    showAlert(result.error || 'Failed to extract information', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showAlert('Failed to process image', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function processCameraImage(blob) {
+            if (isProcessing) return;
+            isProcessing = true;
+            
+            const formData = new FormData();
+            formData.append('camera_image', await blobToBase64(blob));
+            
+            showLoading('Extracting information from card...');
+            statusText.textContent = 'Processing image...';
+            
+            try {
+                const response = await fetch('/extract', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    fillFormFields(result.fields);
+                    showAlert('Information extracted successfully!', 'success');
+                    statusText.textContent = 'Extraction complete!';
+                    
+                    // Focus on name field
+                    setTimeout(() => {
+                        document.getElementById('name').focus();
+                    }, 500);
+                } else {
+                    showAlert(result.error || 'Failed to extract information', 'error');
+                    statusText.textContent = 'Extraction failed - Try again';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showAlert('Failed to process image', 'error');
+                statusText.textContent = 'Error - Try again';
+            } finally {
+                hideLoading();
+                isProcessing = false;
+            }
+        }
+
+        async function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        // Form filling and submission
+        function fillFormFields(fields) {
+            const fieldNames = ['name', 'email', 'phone', 'company'];
+            let hasAutoFilled = false;
+            
+            fieldNames.forEach(field => {
+                const input = document.getElementById(field);
+                const hint = document.getElementById(`${field}-hint`);
+                
+                if (fields[field] && fields[field].trim()) {
+                    input.value = fields[field];
+                    input.classList.add('auto-filled');
+                    if (hint) {
+                        hint.style.display = 'block';
+                    }
+                    hasAutoFilled = true;
+                }
+            });
+            
+            // Show auto-fill status if any field was filled
+            if (hasAutoFilled) {
+                const autoFillStatus = document.getElementById('autoFillStatus');
+                if (autoFillStatus) {
+                    autoFillStatus.style.display = 'block';
+                }
+                
+                // Scroll to the form section
+                const detailsSection = document.querySelector('.details-section');
+                if (detailsSection) {
+                    detailsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
+        }
+
+        // Form submission
+        const form = document.getElementById('businessCardForm');
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const nameInput = document.getElementById('name');
+            
+            if (!nameInput.value.trim()) {
+                showAlert('Name is required', 'error');
+                nameInput.focus();
+                return;
+            }
+            
+            const formData = new FormData(form);
+            formData.append('source', 'manual');
+            
+            showLoading('Processing information and starting AI chat...');
+            
+            try {
+                const response = await fetch('/process-info', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.redirected) {
+                    window.location.href = response.url;
+                    return;
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Information processed successfully! Redirecting to chat...', 'success');
+                } else {
+                    showAlert(result.error || 'Failed to process information', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showAlert('Failed to save business card', 'error');
+            } finally {
+                hideLoading();
+            }
+        });
+        
+        // Utility functions
+        function resetForm() {
+            form.reset();
+            document.querySelectorAll('input').forEach(input => {
+                input.classList.remove('auto-filled');
+            });
+            document.querySelectorAll('.field-hint').forEach(hint => {
+                hint.style.display = 'none';
+            });
+            
+            const autoFillStatus = document.getElementById('autoFillStatus');
+            if (autoFillStatus) {
+                autoFillStatus.style.display = 'none';
+            }
+            
+            hideAlert();
+        }
+        
+        function showAlert(message, type) {
+            hideAlert();
+            
+            const alert = type === 'success' ? document.getElementById('alertSuccess') : document.getElementById('alertError');
+            
+            if (type === 'error') {
+                document.getElementById('errorMessage').textContent = message;
+            } else {
+                alert.textContent = message;
+            }
+            
+            alert.classList.add('show');
+            
+            if (type === 'success') {
+                setTimeout(hideAlert, 5000);
+            }
+        }
+        
+        function hideAlert() {
+            document.querySelectorAll('.alert').forEach(alert => {
+                alert.classList.remove('show');
+            });
+        }
+        
+        function showLoading(text) {
+            document.getElementById('loadingText').textContent = text;
+            document.getElementById('loadingOverlay').classList.add('active');
+        }
+        
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('active');
+        }
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', stopCamera);
+    </script>
+</body>
+</html>
+            } finally {
+                loadingIndicator.style.display = 'none';
+                uploadBtn.disabled = false;
+            }
+        });
+        
+        // Manual form submission
+        document.querySelector('#manualForm form').addEventListener('submit', function() {
+            loadingIndicator.style.display = 'block';
+        });
+        
+        // Utility functions
+        function showSuccess(message) {
+            const el = document.getElementById('successMessage');
+            el.textContent = message;
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 5000);
+        }
+        
+        function showError(message) {
+            const el = document.getElementById('errorMessage');
+            el.textContent = message;
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 5000);
+        }
+    </script>
+</body>
+</html>

@@ -1,3 +1,4 @@
+# Enhanced requirements with new dependencies
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
@@ -6,3 +7,11 @@ Pillow==10.1.0
 requests==2.31.0
 jinja2==3.1.2
 python-dotenv==1.0.0
+
+# New dependencies for enhanced features
+anthropic==0.34.0
+tavily-python==0.3.0
+
+# Compatible versions to avoid conflicts
+httpx>=0.24.0,<0.25.0
+aiofiles==23.2.1

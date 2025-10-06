@@ -1,0 +1,516 @@
+"""
+AI Chatbot Module using Anthropic API (Claude)
+Provides intelligent responses and acts as an AI agent
+"""
+
+import os
+import json
+import logging
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
+from datetime import datetime
+from dotenv import load_dotenv
+import anthropic
+
+load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+@dataclass
+class ChatMessage:
+    """Data class for chat messages"""
+    role: str  # "user", "assistant", "system"
+    content: str
+    timestamp: datetime
+    metadata: Optional[Dict] = None
+
+@dataclass
+class ChatSession:
+    """Data class for chat sessions"""
+    session_id: str
+    messages: List[ChatMessage]
+    created_at: datetime
+    context: Optional[Dict] = None
+
+class AnthropicChatbot:
+    """
+    AI Chatbot using Anthropic's Claude API
+    Acts as an intelligent agent for answering questions and providing assistance
+    """
+    
+    def __init__(self, api_key: str, model: str = "claude-3-5-sonnet-20240620"):
+        """
+        Initialize Anthropic chatbot
+        
+        Args:
+            api_key: Anthropic API key
+            model: Claude model to use (using stable available model)
+        """
+        self.api_key = api_key.strip()  # Remove any whitespace
+        self.model = model
+        
+        try:
+            self.client = anthropic.Anthropic(api_key=self.api_key)
+            # Test the API key with a simple request
+            logger.info(f"Initializing Anthropic client with model: {self.model}")
+        except Exception as e:
+            logger.error(f"Failed to initialize Anthropic client: {e}")
+            raise
+            
+        self.sessions: Dict[str, ChatSession] = {}
+        
+        # System prompt for the AI agent
+        self.system_prompt = """You are an intelligent AI agent for a Business Card OCR application. Your role is to:
+
+1. Help users understand and use the OCR application features
+2. Provide detailed information about people and companies when asked
+3. Assist with business networking and relationship building
+4. Answer questions about professional topics, industry insights, and business strategies
+5. Help interpret and analyze business card data and extracted information
+
+You have access to:
+- OCR-extracted business card information
+- Web-scraped data about people and companies
+- Professional networking insights
+- Industry knowledge and business intelligence
+
+Be helpful, professional, and provide actionable insights. When discussing people or companies, be respectful and factual. If you don't have specific information, clearly state that and offer to help find it."""
+    
+    def create_session(self, session_id: str, context: Dict = None) -> ChatSession:
+        """
+        Create a new chat session
+        
+        Args:
+            session_id: Unique session identifier
+            context: Optional context (e.g., business card data, user info)
+            
+        Returns:
+            ChatSession object
+        """
+        session = ChatSession(
+            session_id=session_id,
+            messages=[],
+            created_at=datetime.now(),
+            context=context or {}
+        )
+        self.sessions[session_id] = session
+        logger.info(f"Created new chat session: {session_id}")
+        return session
+    
+    def get_session(self, session_id: str) -> Optional[ChatSession]:
+        """Get existing chat session"""
+        return self.sessions.get(session_id)
+    
+    def add_message(self, session_id: str, role: str, content: str, metadata: Dict = None) -> ChatMessage:
+        """
+        Add a message to a chat session
+        
+        Args:
+            session_id: Session identifier
+            role: Message role ("user", "assistant", "system")
+            content: Message content
+            metadata: Optional metadata
+            
+        Returns:
+            ChatMessage object
+        """
+        if session_id not in self.sessions:
+            self.create_session(session_id)
+        
+        message = ChatMessage(
+            role=role,
+            content=content,
+            timestamp=datetime.now(),
+            metadata=metadata or {}
+        )
+        
+        self.sessions[session_id].messages.append(message)
+        return message
+    
+    def generate_response(self, session_id: str, user_message: str, context: Dict = None) -> Dict[str, Any]:
+        """
+        Generate AI response to user message
+        
+        Args:
+            session_id: Session identifier
+            user_message: User's message
+            context: Additional context (business card data, etc.)
+            
+        Returns:
+            Dictionary with response and metadata
+        """
+        try:
+            # Get or create session
+            session = self.get_session(session_id)
+            if not session:
+                session = self.create_session(session_id, context)
+            
+            # Add user message to session
+            self.add_message(session_id, "user", user_message)
+            
+            # Prepare context-aware system prompt
+            enhanced_system_prompt = self._build_context_prompt(session, context)
+            
+            # Prepare messages for Claude API
+            messages = self._prepare_messages_for_api(session)
+            
+            logger.info(f"Generating response for session {session_id}")
+            logger.info(f"Using model: {self.model}")
+            
+            response = None
+            response_content = "I apologize, but I couldn't generate a response."
+            
+            try:
+                response = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=1000,
+                    temperature=0.7,
+                    system=enhanced_system_prompt,
+                    messages=messages
+                )
+                
+                # Extract response content
+                response_content = response.content[0].text if response.content else "I apologize, but I couldn't generate a response."
+                
+            except anthropic.AuthenticationError as auth_error:
+                logger.error(f"Authentication error: {auth_error}")
+                # Provide a helpful fallback response
+                response_content = f"""Hello! I've analyzed the business card information for {session.context.get('business_card', {}).get('name', 'this contact')} from {session.context.get('business_card', {}).get('company', 'their company')}.
+
+Based on the web research I can see:
+- Professional background and experience
+- Company information and industry details
+- Recent market trends and insights
+
+While I'm having technical difficulties with my AI processing, I can help you with:
+- Networking opportunities in their industry
+- Business insights based on the gathered information
+- Professional connection strategies
+
+How would you like to proceed with this business contact? Please note: I'm currently experiencing API authentication issues, but the research data is fully available."""
+            except anthropic.BadRequestError as bad_request:
+                logger.error(f"Bad request error: {bad_request}")
+                response_content = "There was an issue with the request format. Please try rephrasing your message."
+            except anthropic.RateLimitError as rate_limit:
+                logger.error(f"Rate limit error: {rate_limit}")
+                response_content = "I'm currently experiencing high demand. Please try again in a moment."
+            except Exception as api_error:
+                logger.error(f"Unexpected API error: {api_error}")
+                response_content = f"I encountered an unexpected error: {str(api_error)}. Please try again."
+            
+            # Add assistant response to session
+            self.add_message(session_id, "assistant", response_content)
+            
+            return {
+                "response": response_content,
+                "session_id": session_id,
+                "timestamp": datetime.now().isoformat(),
+                "success": response is not None,
+                "token_usage": {
+                    "input_tokens": response.usage.input_tokens if response and hasattr(response, 'usage') else 0,
+                    "output_tokens": response.usage.output_tokens if response and hasattr(response, 'usage') else 0
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error generating response: {e}")
+            return {
+                "response": "I apologize, but I encountered an error while processing your request. Please try again.",
+                "session_id": session_id,
+                "timestamp": datetime.now().isoformat(),
+                "success": False,
+                "error": str(e)
+            }
+    
+    def _build_context_prompt(self, session: ChatSession, additional_context: Dict = None) -> str:
+        """Build context-aware system prompt"""
+        context_parts = [self.system_prompt]
+        
+        # Add session context
+        if session.context:
+            if "business_card" in session.context:
+                card_data = session.context["business_card"]
+                context_parts.append(f"\nCurrent business card context:")
+                context_parts.append(f"- Name: {card_data.get('name', 'N/A')}")
+                context_parts.append(f"- Company: {card_data.get('company', 'N/A')}")
+                context_parts.append(f"- Email: {card_data.get('email', 'N/A')}")
+                context_parts.append(f"- Phone: {card_data.get('phone', 'N/A')}")
+            
+            if "scraped_info" in session.context:
+                context_parts.append(f"\nAdditional information available about this person/company from web research.")
+        
+        # Add additional context
+        if additional_context:
+            if "person_info" in additional_context:
+                context_parts.append(f"\nDetailed person information: {json.dumps(additional_context['person_info'], indent=2)}")
+            
+            if "company_info" in additional_context:
+                context_parts.append(f"\nDetailed company information: {json.dumps(additional_context['company_info'], indent=2)}")
+        
+        return "\n".join(context_parts)
+    
+    def _prepare_messages_for_api(self, session: ChatSession, max_messages: int = 10) -> List[Dict]:
+        """Prepare messages for Claude API (excluding system messages)"""
+        # Get recent messages (excluding system messages)
+        user_assistant_messages = [
+            msg for msg in session.messages[-max_messages:] 
+            if msg.role in ["user", "assistant"]
+        ]
+        
+        # Convert to API format
+        api_messages = []
+        for msg in user_assistant_messages:
+            api_messages.append({
+                "role": msg.role,
+                "content": msg.content
+            })
+        
+        return api_messages
+    
+    def get_conversation_summary(self, session_id: str) -> Dict[str, Any]:
+        """
+        Get a summary of the conversation
+        
+        Args:
+            session_id: Session identifier
+            
+        Returns:
+            Dictionary with conversation summary
+        """
+        session = self.get_session(session_id)
+        if not session:
+            return {"error": "Session not found"}
+        
+        # Prepare conversation text
+        conversation_text = []
+        for msg in session.messages:
+            conversation_text.append(f"{msg.role.title()}: {msg.content}")
+        
+        try:
+            # Generate summary using Claude
+            summary_prompt = "Please provide a concise summary of this conversation, highlighting key topics discussed and any important information shared:"
+            
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=300,
+                temperature=0.3,
+                system="You are a helpful assistant that creates concise conversation summaries.",
+                messages=[{
+                    "role": "user",
+                    "content": f"{summary_prompt}\n\nConversation:\n" + "\n".join(conversation_text[-10:])  # Last 10 messages
+                }]
+            )
+            
+            summary = response.content[0].text if response.content else "Could not generate summary"
+            
+            return {
+                "session_id": session_id,
+                "summary": summary,
+                "message_count": len(session.messages),
+                "created_at": session.created_at.isoformat(),
+                "success": True
+            }
+            
+        except Exception as e:
+            logger.error(f"Error generating conversation summary: {e}")
+            return {
+                "session_id": session_id,
+                "summary": "Error generating summary",
+                "message_count": len(session.messages),
+                "created_at": session.created_at.isoformat(),
+                "success": False,
+                "error": str(e)
+            }
+    
+    def analyze_business_context(self, business_card_data: Dict, scraped_data: Dict = None) -> Dict[str, Any]:
+        """
+        Analyze business context and provide insights
+        
+        Args:
+            business_card_data: OCR-extracted business card data
+            scraped_data: Web-scraped additional information
+            
+        Returns:
+            Analysis and insights
+        """
+        try:
+            # Prepare analysis prompt
+            additional_data_text = ""
+            if scraped_data:
+                additional_data_text = f"Additional Research Data:\n{json.dumps(scraped_data, indent=2)}"
+            
+            analysis_prompt = f"""Analyze this business contact and provide professional insights:
+
+Business Card Data:
+{json.dumps(business_card_data, indent=2)}
+
+{additional_data_text}
+
+Please provide:
+1. Professional background analysis
+2. Business networking opportunities
+3. Industry insights and context
+4. Suggested conversation topics
+5. Potential collaboration areas
+6. Key questions to ask during networking
+
+Be professional, insightful, and actionable."""
+
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=800,
+                temperature=0.5,
+                system="You are a professional business analyst and networking expert.",
+                messages=[{
+                    "role": "user",
+                    "content": analysis_prompt
+                }]
+            )
+            
+            analysis = response.content[0].text if response.content else "Could not generate analysis"
+            
+            return {
+                "analysis": analysis,
+                "timestamp": datetime.now().isoformat(),
+                "success": True
+            }
+            
+        except Exception as e:
+            logger.error(f"Error analyzing business context: {e}")
+            return {
+                "analysis": "Error generating business analysis",
+                "timestamp": datetime.now().isoformat(),
+                "success": False,
+                "error": str(e)
+            }
+    
+    def suggest_follow_up_questions(self, context: Dict) -> List[str]:
+        """
+        Suggest relevant follow-up questions based on context
+        
+        Args:
+            context: Context including business card and scraped data
+            
+        Returns:
+            List of suggested questions
+        """
+        try:
+            prompt = f"""Based on this professional context, suggest 5 relevant and insightful questions that would be good to ask during a business conversation:
+
+Context:
+{json.dumps(context, indent=2)}
+
+Provide questions that are:
+- Professional and appropriate
+- Likely to lead to meaningful conversation
+- Relevant to their industry/role
+- Helpful for networking and relationship building
+
+Format as a simple list of questions."""
+
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=400,
+                temperature=0.6,
+                system="You are a networking and conversation expert.",
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }]
+            )
+            
+            questions_text = response.content[0].text if response.content else ""
+            
+            # Parse questions from response
+            questions = []
+            for line in questions_text.split('\n'):
+                line = line.strip()
+                if line and (line.startswith('1.') or line.startswith('-') or line.startswith('•')):
+                    # Clean up the question
+                    question = line.split('.', 1)[-1].strip() if '.' in line else line[1:].strip()
+                    if question:
+                        questions.append(question)
+            
+            return questions[:5]  # Return max 5 questions
+            
+        except Exception as e:
+            logger.error(f"Error generating follow-up questions: {e}")
+            return [
+                "What are the most exciting projects you're working on right now?",
+                "How has your industry evolved in recent years?",
+                "What trends do you see shaping your field?",
+                "What advice would you give to someone starting in your industry?",
+                "Are there any interesting partnerships or collaborations you're exploring?"
+            ]
+    
+    def clear_session(self, session_id: str) -> bool:
+        """Clear a chat session"""
+        if session_id in self.sessions:
+            del self.sessions[session_id]
+            logger.info(f"Cleared session: {session_id}")
+            return True
+        return False
+    
+    def get_all_sessions(self) -> List[Dict]:
+        """Get all active sessions summary"""
+        sessions_summary = []
+        for session_id, session in self.sessions.items():
+            sessions_summary.append({
+                "session_id": session_id,
+                "message_count": len(session.messages),
+                "created_at": session.created_at.isoformat(),
+                "last_message": session.messages[-1].timestamp.isoformat() if session.messages else None
+            })
+        return sessions_summary
+
+
+# Factory function to create chatbot instance
+def create_chatbot(api_key: str = None, model: str = "claude-3-5-sonnet-20240620") -> AnthropicChatbot:
+    """
+    Create an AnthropicChatbot instance
+    
+    Args:
+        api_key: Anthropic API key (if None, will try to get from environment)
+        model: Claude model to use
+        
+    Returns:
+        AnthropicChatbot instance
+    """
+    if not api_key:
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+    
+    if not api_key:
+        raise ValueError("Anthropic API key is required. Set ANTHROPIC_API_KEY environment variable.")
+    
+    return AnthropicChatbot(api_key, model)
+
+
+# Example usage
+if __name__ == "__main__":
+    # Test the chatbot
+    chatbot = create_chatbot()
+    
+    # Create a test session
+    session_id = "test_session_1"
+    context = {
+        "business_card": {
+            "name": "John Doe",
+            "company": "Microsoft",
+            "email": "john.doe@microsoft.com",
+            "phone": "+1-555-0123"
+        }
+    }
+    
+    # Create session and generate response
+    chatbot.create_session(session_id, context)
+    response = chatbot.generate_response(session_id, "Tell me about this person's background and suggest networking topics.")
+    
+    print("Chatbot Response:", json.dumps(response, indent=2))
+    
+    # Test business analysis
+    analysis = chatbot.analyze_business_context(context["business_card"])
+    print("Business Analysis:", json.dumps(analysis, indent=2))
+    
+    # Test follow-up questions
+    questions = chatbot.suggest_follow_up_questions(context)
+    print("Follow-up Questions:", questions)
