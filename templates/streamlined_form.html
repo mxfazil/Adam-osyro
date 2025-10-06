@@ -497,7 +497,7 @@
                     <div id="camera-tab" class="tab-content">
                         <div class="camera-section">
                             <div class="camera-info">
-                                📸 Position the business card within the frame for automatic capture
+                                📸 Auto-capture active - Position the business card within the frame
                             </div>
                             
                             <div class="video-container" id="videoContainer">
@@ -650,6 +650,10 @@
         const stopCameraBtn = document.getElementById('stopCamera');
         const cameraStatus = document.getElementById('cameraStatus');
         const statusText = document.getElementById('statusText');
+        
+        // Auto-capture variables
+        let autoCaptureInterval = null;
+        let autoCaptureEnabled = true;
 
         startCameraBtn.addEventListener('click', async () => {
             try {
@@ -666,10 +670,14 @@
                 video.srcObject = stream;
                 videoContainer.style.display = 'block';
                 startCameraBtn.style.display = 'none';
-                captureBtn.style.display = 'inline-block';
+                // Hide manual capture button since we're doing auto-capture
+                captureBtn.style.display = 'none';
                 stopCameraBtn.style.display = 'inline-block';
                 
                 statusText.textContent = 'Camera ready - Position your card';
+                
+                // Start auto-capture
+                startAutoCapture();
                 
             } catch (error) {
                 console.error('Camera error:', error);
@@ -678,9 +686,10 @@
             }
         });
 
-        captureBtn.addEventListener('click', () => {
-            captureImage();
-        });
+        // Remove manual capture button event listener since we don't need it for auto-capture
+        // captureBtn.addEventListener('click', () => {
+        //     captureImage();
+        // });
 
         stopCameraBtn.addEventListener('click', () => {
             stopCamera();
@@ -699,6 +708,12 @@
         }
 
         function stopCamera() {
+            // Clear auto-capture interval
+            if (autoCaptureInterval) {
+                clearInterval(autoCaptureInterval);
+                autoCaptureInterval = null;
+            }
+            
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
                 video.srcObject = null;
@@ -710,6 +725,89 @@
             stopCameraBtn.style.display = 'none';
             statusText.textContent = 'Ready to scan';
             isProcessing = false;
+        }
+        
+        // Auto-capture functionality
+        function startAutoCapture() {
+            if (!autoCaptureEnabled || isProcessing) return;
+            
+            // Clear any existing interval
+            if (autoCaptureInterval) {
+                clearInterval(autoCaptureInterval);
+            }
+            
+            statusText.textContent = 'Auto-capture active - Position card in frame';
+            
+            autoCaptureInterval = setInterval(() => {
+                if (!stream || isProcessing) {
+                    return;
+                }
+                
+                if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                    // Capture frame for analysis
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    const context = canvas.getContext('2d');
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    // Analyze frame for business card detection
+                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                    
+                    // Simple detection: check for text-like regions
+                    if (detectBusinessCard(imageData)) {
+                        clearInterval(autoCaptureInterval);
+                        autoCaptureInterval = null;
+                        statusText.textContent = 'Business card detected! Auto-capturing...';
+                        setTimeout(() => {
+                            captureImage();
+                        }, 500);
+                    }
+                }
+            }, 500); // Check every 500ms for better responsiveness
+        }
+        
+        // Simple business card detection algorithm
+        function detectBusinessCard(imageData) {
+            const data = imageData.data;
+            const width = imageData.width;
+            const height = imageData.height;
+            
+            // Sample points around the center (focus frame area)
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const sampleWidth = width * 0.6;  // 60% of width
+            const sampleHeight = height * 0.4; // 40% of height
+            
+            let edgeCount = 0;
+            let totalPixels = 0;
+            
+            // Analyze a grid of points in the center region
+            for (let y = centerY - sampleHeight/2; y < centerY + sampleHeight/2; y += 10) {
+                for (let x = centerX - sampleWidth/2; x < centerX + sampleWidth/2; x += 10) {
+                    if (x >= 0 && x < width && y >= 0 && y < height) {
+                        const idx = (Math.floor(y) * width + Math.floor(x)) * 4;
+                        
+                        // Get RGB values
+                        const r = data[idx];
+                        const g = data[idx + 1];
+                        const b = data[idx + 2];
+                        
+                        // Convert to grayscale
+                        const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+                        
+                        // Check for edges (high contrast areas)
+                        if (brightness < 50 || brightness > 200) {
+                            edgeCount++;
+                        }
+                        totalPixels++;
+                    }
+                }
+            }
+            
+            // If we have a significant number of edge-like pixels, consider it a business card
+            const edgeRatio = edgeCount / totalPixels;
+            return edgeRatio > 0.3; // 30% of sampled pixels show high contrast
         }
 
         // Image processing
@@ -954,7 +1052,9 @@
         }
         
         // Cleanup on page unload
-        window.addEventListener('beforeunload', stopCamera);
+        window.addEventListener('beforeunload', () => {
+            stopCamera();
+        });
         
         async function saveToDatabase() {
             // Get form data

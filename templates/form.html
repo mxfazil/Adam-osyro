@@ -524,7 +524,7 @@
                     <div id="camera-tab" class="tab-content">
                         <div class="camera-section">
                             <div class="camera-info">
-                                Position the business card within the frame. The camera will automatically detect and capture when the card is in focus.
+                                Position the business card within the frame. The camera will automatically detect and capture when a business card is detected.
                             </div>
                             
                             <div class="video-container" id="videoContainer" style="display: none;">
@@ -622,6 +622,7 @@
         let stream = null;
         let isProcessing = false;
         let autoCaptureEnabled = true;
+        let autoCaptureInterval = null;
 
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', () => {
@@ -696,7 +697,8 @@
                 video.srcObject = stream;
                 videoContainer.style.display = 'block';
                 startCameraBtn.style.display = 'none';
-                captureBtn.style.display = 'inline-block';
+                // Hide manual capture button since we're doing auto-capture
+                captureBtn.style.display = 'none';
                 stopCameraBtn.style.display = 'inline-block';
                 
                 video.onloadedmetadata = () => {
@@ -715,15 +717,17 @@
             }
         });
 
-        captureBtn.addEventListener('click', () => {
-            captureImage();
-        });
+        // Remove manual capture button event listener since we don't need it for auto-capture
+        // captureBtn.addEventListener('click', () => {
+        //     captureImage();
+        // });
 
         retakeBtn.addEventListener('click', () => {
             previewImage.classList.remove('active');
             previewImage.src = '';
             retakeBtn.style.display = 'none';
-            captureBtn.style.display = 'inline-block';
+            // Hide manual capture button and show auto-capture status
+            captureBtn.style.display = 'none';
             updateCameraStatus('Position card in frame', true);
             
             setTimeout(() => {
@@ -756,6 +760,7 @@
             previewImage.src = canvas.toDataURL('image/jpeg', 0.9);
             previewImage.classList.add('active');
             
+            // Hide capture button and show retake button
             captureBtn.style.display = 'none';
             retakeBtn.style.display = 'inline-block';
             updateCameraStatus('Image captured', true);
@@ -768,57 +773,105 @@
         function startAutoCapture() {
             if (!autoCaptureEnabled || isProcessing) return;
             
-            const checkInterval = setInterval(() => {
+            // Clear any existing interval
+            if (autoCaptureInterval) {
+                clearInterval(autoCaptureInterval);
+            }
+            
+            updateCameraStatus('Auto-capture active - Position card in frame', true);
+            
+            autoCaptureInterval = setInterval(() => {
                 if (!stream || isProcessing || previewImage.classList.contains('active')) {
-                    clearInterval(checkInterval);
                     return;
                 }
                 
                 if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                    // Capture frame for analysis
                     const context = canvas.getContext('2d');
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
                     context.drawImage(video, 0, 0, canvas.width, canvas.height);
                     
+                    // Analyze frame for business card detection
                     const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                    const brightness = calculateBrightness(imageData);
-                    const sharpness = calculateSharpness(imageData);
                     
-                    if (brightness > 50 && brightness < 200 && sharpness > 10) {
-                        clearInterval(checkInterval);
-                        updateCameraStatus('Perfect! Auto-capturing...', true);
+                    // Simple detection: check for text-like regions
+                    if (detectBusinessCard(imageData)) {
+                        clearInterval(autoCaptureInterval);
+                        autoCaptureInterval = null;
+                        updateCameraStatus('Business card detected! Auto-capturing...', true);
                         setTimeout(() => {
                             captureImage();
                         }, 500);
                     }
                 }
-            }, 1000);
+            }, 500); // Check every 500ms for better responsiveness
         }
 
-        function calculateBrightness(imageData) {
-            let sum = 0;
-            const data = imageData.data;
-            for (let i = 0; i < data.length; i += 4) {
-                sum += (data[i] + data[i + 1] + data[i + 2]) / 3;
-            }
-            return sum / (data.length / 4);
-        }
-
-        function calculateSharpness(imageData) {
-            const data = imageData.data;
-            const w = imageData.width;
-            let variance = 0;
+        function detectBusinessCard(imageData) {
+            // Simple heuristic for business card detection
+            // In a real implementation, you might use a more sophisticated approach
+            // For now, we'll use a combination of edge detection and text region analysis
             
-            for (let i = w * 4; i < data.length - w * 4; i += 4) {
-                const val = data[i];
-                const lap = -4 * val + data[i - 4] + data[i + 4] + data[i - w * 4] + data[i + w * 4];
-                variance += lap * lap;
+            const data = imageData.data;
+            const width = imageData.width;
+            const height = imageData.height;
+            
+            // Calculate image statistics
+            let brightnessSum = 0;
+            let edgeCount = 0;
+            
+            // Simple edge detection
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    const idx = (y * width + x) * 4;
+                    
+                    // Calculate brightness
+                    const brightness = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+                    brightnessSum += brightness;
+                    
+                    // Simple edge detection (checking for high contrast)
+                    const leftIdx = (y * width + (x - 1)) * 4;
+                    const rightIdx = (y * width + (x + 1)) * 4;
+                    const topIdx = ((y - 1) * width + x) * 4;
+                    const bottomIdx = ((y + 1) * width + x) * 4;
+                    
+                    const leftBrightness = (data[leftIdx] + data[leftIdx + 1] + data[leftIdx + 2]) / 3;
+                    const rightBrightness = (data[rightIdx] + data[rightIdx + 1] + data[rightIdx + 2]) / 3;
+                    const topBrightness = (data[topIdx] + data[topIdx + 1] + data[topIdx + 2]) / 3;
+                    const bottomBrightness = (data[bottomIdx] + data[bottomIdx + 1] + data[bottomIdx + 2]) / 3;
+                    
+                    // If there's a significant contrast, count as edge
+                    const horizontalDiff = Math.abs(leftBrightness - rightBrightness);
+                    const verticalDiff = Math.abs(topBrightness - bottomBrightness);
+                    
+                    if (horizontalDiff > 30 || verticalDiff > 30) {
+                        edgeCount++;
+                    }
+                }
             }
             
-            return variance / (data.length / 4);
+            const avgBrightness = brightnessSum / (width * height);
+            const edgeDensity = edgeCount / (width * height);
+            
+            // Business card detection heuristics:
+            // 1. Moderate brightness (not too dark or bright)
+            // 2. Moderate edge density (indicates text/structure)
+            // 3. Aspect ratio close to business card (3.5:2 or 2:3.5)
+            
+            const isModerateBrightness = avgBrightness > 40 && avgBrightness < 200;
+            const hasTextStructure = edgeDensity > 0.05 && edgeDensity < 0.3;
+            
+            return isModerateBrightness && hasTextStructure;
         }
 
         function stopCamera() {
+            // Clear auto-capture interval
+            if (autoCaptureInterval) {
+                clearInterval(autoCaptureInterval);
+                autoCaptureInterval = null;
+            }
+            
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
                 video.srcObject = null;

@@ -72,6 +72,41 @@
             height: 24px;
         }
         
+        /* Tab styles */
+        .scan-tabs {
+            display: flex;
+            margin-bottom: 25px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            padding: 5px;
+        }
+        
+        .scan-tab {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            background: transparent;
+            color: #64748b;
+            cursor: pointer;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .scan-tab.active {
+            background: white;
+            color: #4f46e5;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
         .upload-area {
             border: 3px dashed #cbd5e1;
             border-radius: 15px;
@@ -105,6 +140,82 @@
         .upload-hint {
             font-size: 0.9rem;
             color: #94a3b8;
+        }
+        
+        /* Camera section styles */
+        .camera-section {
+            text-align: center;
+        }
+        
+        .camera-info {
+            background: #e0f2fe;
+            color: #0277bd;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto 20px;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            display: none;
+        }
+        
+        #video {
+            width: 100%;
+            display: block;
+        }
+        
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+        
+        .focus-frame {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 60%;
+            border: 2px solid #4f46e5;
+            border-radius: 10px;
+        }
+        
+        .camera-status {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .camera-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        
+        .camera-controls .btn {
+            width: auto;
+            margin: 0;
+            min-width: 120px;
         }
         
         .checkbox-group {
@@ -149,6 +260,14 @@
             cursor: not-allowed;
             transform: none;
             box-shadow: none;
+        }
+        
+        .btn-secondary {
+            background: #6b7280;
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: #4b5563;
         }
         
         .results-area {
@@ -318,35 +437,67 @@
                     Smart Card Scanner
                 </h2>
                 
-                <div class="upload-area" onclick="document.getElementById('imageInput').click()">
-                    <div class="upload-text">📷 Click to upload or drag & drop</div>
-                    <div class="upload-hint">Supports JPG, PNG, WebP formats</div>
-                    <input type="file" id="imageInput" class="file-input" accept="image/*">
+                <div class="scan-tabs">
+                    <button class="scan-tab active" data-tab="upload">📷 Upload Image</button>
+                    <button class="scan-tab" data-tab="camera">📱 Live Camera</button>
                 </div>
-                
-                <div class="checkbox-group">
-                    <label>
-                        <input type="checkbox" id="enableWebScraping" checked>
-                        <span>🔍 Extract additional web information</span>
-                    </label>
+
+                <!-- Upload Tab -->
+                <div id="upload-tab" class="tab-content active">
+                    <div class="upload-area" onclick="document.getElementById('imageInput').click()">
+                        <div class="upload-text">📷 Click to upload or drag & drop</div>
+                        <div class="upload-hint">Supports JPG, PNG, WebP formats</div>
+                        <input type="file" id="imageInput" class="file-input" accept="image/*">
+                    </div>
                 </div>
-                
-                <div class="checkbox-group">
-                    <label>
-                        <input type="checkbox" id="enableAiAnalysis" checked>
-                        <span>🧠 Generate AI business analysis</span>
-                    </label>
+
+                <!-- Camera Tab -->
+                <div id="camera-tab" class="tab-content">
+                    <div class="camera-section">
+                        <div class="camera-info">
+                            📸 Auto-capture active - Position the business card within the frame
+                        </div>
+                        
+                        <div class="video-container" id="videoContainer">
+                            <video id="video" autoplay playsinline muted></video>
+                            <div class="video-overlay">
+                                <div class="focus-frame"></div>
+                                <div class="camera-status" id="cameraStatus">
+                                    <span id="statusText">Ready to scan</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="camera-controls">
+                            <button id="startCamera" class="btn">Start Camera</button>
+                            <button id="capture" class="btn" style="display: none;">Capture</button>
+                            <button id="stopCamera" class="btn btn-secondary" style="display: none;">Stop</button>
+                        </div>
+                    </div>
+                    
+                    <div class="checkbox-group">
+                        <label>
+                            <input type="checkbox" id="enableWebScraping" checked>
+                            <span>🔍 Extract additional web information</span>
+                        </label>
+                    </div>
+                    
+                    <div class="checkbox-group">
+                        <label>
+                            <input type="checkbox" id="enableAiAnalysis" checked>
+                            <span>🧠 Generate AI business analysis</span>
+                        </label>
+                    </div>
+                    
+                    <button class="btn" id="processBtn" disabled>
+                        🚀 Process Business Card
+                    </button>
+                    
+                    <div class="loading" id="loadingIndicator">
+                        <div class="spinner"></div>
+                        <p>Processing your business card...</p>
+                    </div>
                 </div>
-                
-                <button class="btn" id="processBtn" disabled>
-                    🚀 Process Business Card
-                </button>
-                
-                <div class="loading" id="loadingIndicator">
-                    <div class="spinner"></div>
-                    <p>Processing your business card...</p>
-                </div>
-            </div>
             
             <!-- AI Chatbot Section -->
             <div class="card">
@@ -403,6 +554,30 @@
     <script>
         let currentSessionId = null;
         let currentContext = null;
+        let stream = null;
+        let isProcessing = false;
+        let autoCaptureInterval = null;
+        let autoCaptureEnabled = true;
+        
+        // Tab switching functionality
+        document.querySelectorAll('.scan-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+                
+                // Update tab states
+                document.querySelectorAll('.scan-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                // Update content visibility
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                document.getElementById(`${tabName}-tab`).classList.add('active');
+                
+                // Stop camera if switching away from camera tab
+                if (tabName !== 'camera' && stream) {
+                    stopCamera();
+                }
+            });
+        });
         
         // File upload handling
         const imageInput = document.getElementById('imageInput');
@@ -410,6 +585,15 @@
         const processBtn = document.getElementById('processBtn');
         const loadingIndicator = document.getElementById('loadingIndicator');
         const resultsArea = document.getElementById('resultsArea');
+        
+        // Camera elements
+        const video = document.getElementById('video');
+        const videoContainer = document.getElementById('videoContainer');
+        const startCameraBtn = document.getElementById('startCamera');
+        const captureBtn = document.getElementById('capture');
+        const stopCameraBtn = document.getElementById('stopCamera');
+        const cameraStatus = document.getElementById('cameraStatus');
+        const statusText = document.getElementById('statusText');
         
         // Chat elements
         const chatMessages = document.getElementById('chatMessages');
@@ -441,6 +625,302 @@
                 processBtn.disabled = false;
             }
         });
+        
+        // Camera functionality
+        startCameraBtn.addEventListener('click', async () => {
+            try {
+                statusText.textContent = 'Requesting camera access...';
+                
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    } 
+                });
+                
+                video.srcObject = stream;
+                videoContainer.style.display = 'block';
+                startCameraBtn.style.display = 'none';
+                // Hide manual capture button since we're doing auto-capture
+                captureBtn.style.display = 'none';
+                stopCameraBtn.style.display = 'inline-block';
+                
+                statusText.textContent = 'Camera ready - Position your card';
+                
+                // Start auto-capture
+                startAutoCapture();
+                
+            } catch (error) {
+                console.error('Camera error:', error);
+                alert('Camera access denied or not available: ' + error.message);
+                statusText.textContent = 'Camera error';
+            }
+        });
+
+        stopCameraBtn.addEventListener('click', () => {
+            stopCamera();
+        });
+
+        function captureImage() {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+            
+            canvas.toBlob((blob) => {
+                processCameraImage(blob);
+            }, 'image/jpeg', 0.8);
+        }
+
+        function stopCamera() {
+            // Clear auto-capture interval
+            if (autoCaptureInterval) {
+                clearInterval(autoCaptureInterval);
+                autoCaptureInterval = null;
+            }
+            
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                stream = null;
+            }
+            videoContainer.style.display = 'none';
+            startCameraBtn.style.display = 'inline-block';
+            captureBtn.style.display = 'none';
+            stopCameraBtn.style.display = 'none';
+            statusText.textContent = 'Ready to scan';
+            isProcessing = false;
+        }
+        
+        // Auto-capture functionality
+        function startAutoCapture() {
+            if (!autoCaptureEnabled || isProcessing) return;
+            
+            // Clear any existing interval
+            if (autoCaptureInterval) {
+                clearInterval(autoCaptureInterval);
+            }
+            
+            statusText.textContent = 'Auto-capture active - Position card in frame';
+            
+            autoCaptureInterval = setInterval(() => {
+                if (!stream || isProcessing) {
+                    return;
+                }
+                
+                if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                    // Capture frame for analysis
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    const context = canvas.getContext('2d');
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    // Analyze frame for business card detection
+                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                    
+                    // Simple detection: check for text-like regions
+                    if (detectBusinessCard(imageData)) {
+                        clearInterval(autoCaptureInterval);
+                        autoCaptureInterval = null;
+                        statusText.textContent = 'Business card detected! Auto-capturing...';
+                        setTimeout(() => {
+                            captureImage();
+                        }, 500);
+                    }
+                }
+            }, 500); // Check every 500ms for better responsiveness
+        }
+        
+        // Simple business card detection algorithm
+        function detectBusinessCard(imageData) {
+            const data = imageData.data;
+            const width = imageData.width;
+            const height = imageData.height;
+            
+            // Sample points around the center (focus frame area)
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const sampleWidth = width * 0.6;  // 60% of width
+            const sampleHeight = height * 0.4; // 40% of height
+            
+            let edgeCount = 0;
+            let totalPixels = 0;
+            
+            // Analyze a grid of points in the center region
+            for (let y = centerY - sampleHeight/2; y < centerY + sampleHeight/2; y += 10) {
+                for (let x = centerX - sampleWidth/2; x < centerX + sampleWidth/2; x += 10) {
+                    if (x >= 0 && x < width && y >= 0 && y < height) {
+                        const idx = (Math.floor(y) * width + Math.floor(x)) * 4;
+                        
+                        // Get RGB values
+                        const r = data[idx];
+                        const g = data[idx + 1];
+                        const b = data[idx + 2];
+                        
+                        // Convert to grayscale
+                        const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+                        
+                        // Check for edges (high contrast areas)
+                        if (brightness < 50 || brightness > 200) {
+                            edgeCount++;
+                        }
+                        totalPixels++;
+                    }
+                }
+            }
+            
+            // If we have a significant number of edge-like pixels, consider it a business card
+            const edgeRatio = edgeCount / totalPixels;
+            return edgeRatio > 0.3; // 30% of sampled pixels show high contrast
+        }
+        
+        // Process camera image
+        async function processCameraImage(blob) {
+            if (isProcessing) return;
+            isProcessing = true;
+            
+            const formData = new FormData();
+            formData.append('camera_image', await blobToBase64(blob));
+            
+            loadingIndicator.style.display = 'block';
+            processBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/extract', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Process the OCR result with enhanced features
+                    processOCREnhanced(result.fields, blob);
+                } else {
+                    alert('Error processing business card: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error processing business card: ' + error.message);
+            } finally {
+                loadingIndicator.style.display = 'none';
+                processBtn.disabled = false;
+                isProcessing = false;
+                stopCamera();
+            }
+        }
+        
+        // Process OCR result with enhanced features
+        async function processOCREnhanced(fields, imageBlob) {
+            const enableWebScraping = document.getElementById('enableWebScraping').checked;
+            
+            // Create a file from the blob for the enhanced processing
+            const imageFile = new File([imageBlob], "camera_capture.jpg", { type: "image/jpeg" });
+            
+            const formData = new FormData();
+            formData.append('file', imageFile);
+            
+            try {
+                const response = await fetch(`/api/v1/ocr/extract-enhanced?extract_web_info=${enableWebScraping}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer lz5YJcqo7yYqZR8iNiMpMyjMn_tsED88yDjK9niHaDk'
+                    },
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayResults(result.data);
+                    
+                    // Set context for chat
+                    currentContext = {
+                        business_card: result.data.ocr_fields,
+                        web_info: result.data.web_info,
+                        ai_analysis: result.data.ai_analysis
+                    };
+                    
+                    // Generate new session for this card
+                    currentSessionId = 'session_' + Date.now();
+                    
+                    // Send initial context to chatbot
+                    if (result.data.ai_analysis) {
+                        addChatMessage('assistant', result.data.ai_analysis.analysis || 'Business card analyzed successfully!');
+                    }
+                } else {
+                    alert('Error processing business card: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error processing business card: ' + error.message);
+            } finally {
+                loadingIndicator.style.display = 'none';
+                processBtn.disabled = false;
+            }
+        }
+        
+        async function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+        
+        // Process OCR result and trigger enhanced processing
+        async function processOCRResult(fields) {
+            // Create a fake file for the enhanced processing
+            const fakeData = new FormData();
+            // We'll need to create a minimal file object or use a different approach
+            
+            // For now, let's directly call the enhanced API with the fields
+            const enableWebScraping = document.getElementById('enableWebScraping').checked;
+            
+            try {
+                // First, we need to get the actual image data - let's create a simplified version
+                const response = await fetch(`/api/v1/ocr/extract-enhanced?extract_web_info=${enableWebScraping}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer lz5YJcqo7yYqZR8iNiMpMyjMn_tsED88yDjK9niHaDk'
+                    },
+                    body: fakeData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayResults(result.data);
+                    
+                    // Set context for chat
+                    currentContext = {
+                        business_card: result.data.ocr_fields,
+                        web_info: result.data.web_info,
+                        ai_analysis: result.data.ai_analysis
+                    };
+                    
+                    // Generate new session for this card
+                    currentSessionId = 'session_' + Date.now();
+                    
+                    // Send initial context to chatbot
+                    if (result.data.ai_analysis) {
+                        addChatMessage('assistant', result.data.ai_analysis.analysis || 'Business card analyzed successfully!');
+                    }
+                } else {
+                    alert('Error processing business card: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error processing business card: ' + error.message);
+            } finally {
+                loadingIndicator.style.display = 'none';
+                processBtn.disabled = false;
+            }
+        }
         
         // Process business card
         processBtn.addEventListener('click', async function() {
@@ -639,6 +1119,11 @@
                 chatSuggestions.appendChild(chip);
             });
         }
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            stopCamera();
+        });
     </script>
 </body>
 </html>
