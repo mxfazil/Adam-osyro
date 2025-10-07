@@ -33,6 +33,7 @@ from ocr import (
 # Import enhanced modules
 from webscraper import TavilyWebScraper, create_scraper
 from chatbot import GeminiChatbot, create_chatbot
+from email_service import EmailService, create_email_service
 
 from contextlib import asynccontextmanager
 
@@ -63,13 +64,14 @@ logger = logging.getLogger(__name__)
 # Global instances
 web_scraper: Optional[TavilyWebScraper] = None
 ai_chatbot: Optional[GeminiChatbot] = None
+email_service: Optional[EmailService] = None
 
 # Session storage for profiles
 user_sessions: Dict[str, Dict] = {}
 
 def initialize_services():
-    """Initialize web scraper and chatbot services"""
-    global web_scraper, ai_chatbot
+    """Initialize web scraper, chatbot, and email services"""
+    global web_scraper, ai_chatbot, email_service
     
     # Initialize web scraper
     tavily_api_key = os.getenv("TAVILY_API_KEY")
@@ -106,6 +108,23 @@ def initialize_services():
     else:
         logger.warning("⚠️ Gemini API key not valid - chatbot disabled")
         ai_chatbot = None
+    
+    # Initialize email service
+    sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
+    logger.info(f"📧 SendGrid API key found: {'Yes' if sendgrid_api_key else 'No'}")
+    
+    if sendgrid_api_key and sendgrid_api_key != "your-sendgrid-api-key-here":
+        try:
+            email_service = create_email_service(sendgrid_api_key)
+            logger.info("✅ SendGrid email service initialized successfully")
+        except Exception as email_error:
+            logger.error(f"❌ Failed to initialize SendGrid: {email_error}")
+            import traceback
+            logger.error(f"❌ SendGrid error traceback: {traceback.format_exc()}")
+            email_service = None
+    else:
+        logger.warning("⚠️ SendGrid API key not valid - email service disabled")
+        email_service = None
 
 # Pydantic models
 class UserInfoRequest(BaseModel):
@@ -523,9 +542,34 @@ async def save_card(
         
         logger.info(f"Saving to Supabase: {data}")
         result = supabase.table("business_cards").insert(data).execute()
-        logger.info(f"Successfully saved card with ID: {result.data[0]['id']}")
+        card_id = result.data[0]['id']
+        logger.info(f"Successfully saved card with ID: {card_id}")
         
-        return JSONResponse({"success": True, "message": "Business card saved successfully", "data": {"id": result.data[0]['id']}})
+        # Send welcome email if email service is available and email is provided
+        email_sent = False
+        if email_service and email.strip():
+            try:
+                email_result = email_service.send_welcome_email(
+                    email.strip(), 
+                    name.strip(), 
+                    company.strip() if company.strip() else None
+                )
+                email_sent = email_result["success"]
+                if email_sent:
+                    logger.info(f"📧 Welcome email sent to {email}")
+                else:
+                    logger.warning(f"⚠️ Failed to send email: {email_result['message']}")
+            except Exception as e:
+                logger.error(f"❌ Email sending error: {e}")
+        
+        return JSONResponse({
+            "success": True, 
+            "message": "Business card saved successfully" + (" and welcome email sent" if email_sent else ""), 
+            "data": {
+                "id": card_id,
+                "email_sent": email_sent
+            }
+        })
         
     except HTTPException:
         raise
@@ -670,6 +714,49 @@ async def get_session_data(session_id: str):
     
     return user_sessions[session_id]
 
+# Bulk email endpoint
+@app.post("/api/send-bulk-emails", tags=["API"])
+async def send_bulk_emails(api_key: str = Depends(verify_api_key)):
+    """
+    Send welcome emails to all contacts in database
+    Requires API authentication
+    """
+    try:
+        if not email_service:
+            raise HTTPException(status_code=503, detail="Email service not available")
+        
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database not available")
+        
+        # Fetch all contacts with emails
+        result = supabase.table("business_cards")\
+            .select("name, email, company")\
+            .not_.is_("email", "null")\
+            .neq("email", "")\
+            .execute()
+        
+        contacts = result.data
+        
+        if not contacts:
+            return JSONResponse({
+                "success": True,
+                "message": "No contacts with emails found",
+                "results": {"total": 0, "sent": 0, "failed": 0}
+            })
+        
+        # Send batch emails
+        results = email_service.send_batch_emails(contacts)
+        
+        return JSONResponse({
+            "success": True,
+            "message": f"Sent {results['sent']}/{results['total']} emails",
+            "results": results
+        })
+        
+    except Exception as e:
+        logger.error(f"Bulk email error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Health check
 @app.get("/api/health", tags=["API"])
 async def health_check():
@@ -682,6 +769,7 @@ async def health_check():
         "services": {
             "web_scraper": web_scraper is not None,
             "ai_chatbot": ai_chatbot is not None,
+            "email_service": email_service is not None,
             "supabase": supabase is not None
         },
         "version": "2.0.0"

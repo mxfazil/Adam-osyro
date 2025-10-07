@@ -15,3 +15,6 @@ tavily-python==0.3.0
 # Compatible versions to avoid conflicts
 httpx>=0.24.0,<0.25.0
 aiofiles==23.2.1
+
+# Email service
+sendgrid==6.12.5
