@@ -684,12 +684,33 @@ async def save_all(
                 logger.error(f"Traceback: {traceback.format_exc()}")
                 # Continue without saving web info
         
+        # Send welcome email if email service is available and email is provided
+        email_sent = False
+        if email_service and email.strip():
+            try:
+                logger.info(f"📧 Attempting to send welcome email to {email.strip()}")
+                email_result = email_service.send_welcome_email(
+                    email.strip(), 
+                    name.strip(), 
+                    company.strip() if company.strip() else None
+                )
+                email_sent = email_result["success"]
+                if email_sent:
+                    logger.info(f"✅ Welcome email sent to {email}")
+                else:
+                    logger.warning(f"⚠️ Failed to send email: {email_result['message']}")
+            except Exception as e:
+                logger.error(f"❌ Email sending error: {e}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+        
         return JSONResponse({
             "success": True, 
-            "message": "All information saved successfully", 
+            "message": "All information saved successfully" + (" and welcome email sent" if email_sent else ""), 
             "data": {
                 "card_id": card_id,
-                "web_info_id": web_info_id
+                "web_info_id": web_info_id,
+                "email_sent": email_sent
             }
         })
         
