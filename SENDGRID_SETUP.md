@@ -18,6 +18,10 @@ Add these to your `.env` file:
 SENDGRID_API_KEY=SG.your_actual_api_key_here
 SENDGRID_FROM_EMAIL=noreply@yourdomain.com
 SENDGRID_FROM_NAME=Business Card OCR Team
+
+# Optional: Improve deliverability (recommended to avoid spam)
+SENDGRID_REPLY_TO_EMAIL=support@yourdomain.com
+SENDGRID_UNSUBSCRIBE_GROUP_ID=12345  # Get from SendGrid dashboard
 ```
 
 **Important Notes:**
@@ -247,6 +251,19 @@ Monitor your emails in the SendGrid dashboard:
 3. View sent emails, delivery status, opens, clicks, etc.
 
 ## Troubleshooting
+
+### Emails Going to Spam 🚨
+**Problem:** Emails are being delivered but going to spam folder
+
+**Solutions:**
+1. **CRITICAL:** Set up domain authentication (SPF, DKIM, DMARC) in SendGrid
+   - Go to Settings → Sender Authentication → Authenticate Your Domain
+   - Add provided DNS records to your domain
+   - This is the #1 fix for spam issues
+2. Add `SENDGRID_REPLY_TO_EMAIL` to your `.env` file
+3. Create an unsubscribe group in SendGrid and add the ID to `.env`
+4. Test your emails at https://www.mail-tester.com/
+5. **See `EMAIL_DELIVERABILITY_GUIDE.md` for complete instructions**
 
 ### Email Not Sending
 **Problem:** Emails are not being sent

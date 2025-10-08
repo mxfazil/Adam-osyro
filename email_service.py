@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 from dotenv import load_dotenv
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail, Email, To, Content
+from sendgrid.helpers.mail import Mail, Email, To, Content, ReplyTo, Asm, GroupId, GroupsToDisplay
 
 load_dotenv()
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class EmailService:
     """Email service for sending automated emails using SendGrid"""
     
-    def __init__(self, api_key: str = None, from_email: str = None, from_name: str = None):
+    def __init__(self, api_key: str = None, from_email: str = None, from_name: str = None, reply_to_email: str = None):
         """
         Initialize SendGrid email service
         
@@ -27,10 +27,13 @@ class EmailService:
             api_key: SendGrid API key (defaults to env var)
             from_email: Sender email (defaults to env var)
             from_name: Sender name (defaults to env var)
+            reply_to_email: Reply-to email (defaults to env var or from_email)
         """
         self.api_key = api_key or os.getenv("SENDGRID_API_KEY")
         self.from_email = from_email or os.getenv("SENDGRID_FROM_EMAIL")
         self.from_name = from_name or os.getenv("SENDGRID_FROM_NAME", "Business Card OCR")
+        self.reply_to_email = reply_to_email or os.getenv("SENDGRID_REPLY_TO_EMAIL", self.from_email)
+        self.unsubscribe_group_id = os.getenv("SENDGRID_UNSUBSCRIBE_GROUP_ID")  # Optional
         
         if not self.api_key:
             raise ValueError("SENDGRID_API_KEY not found in environment")
@@ -54,8 +57,8 @@ class EmailService:
             Response dict with success status
         """
         try:
-            # Create email content
-            subject = f"Welcome {name}! Your Business Card is Saved"
+            # Create email content - less promotional subject
+            subject = f"Thank you for connecting, {name}"
             
             html_content = f"""
             <!DOCTYPE html>
@@ -122,9 +125,13 @@ class EmailService:
                                     <!-- Footer -->
                                     <tr>
                                         <td style="padding: 30px; background-color: #f8f9fa; border-top: 1px solid #e9ecef;">
-                                            <p style="margin: 0; color: #999999; font-size: 12px; line-height: 1.5; text-align: center;">
+                                            <p style="margin: 0 0 10px 0; color: #999999; font-size: 12px; line-height: 1.5; text-align: center;">
                                                 This email was sent because your business card was scanned into our system.<br>
                                                 © {datetime.now().year} {self.from_name}. All rights reserved.
+                                            </p>
+                                            <p style="margin: 0; color: #999999; font-size: 11px; text-align: center;">
+                                                <a href="{{{{unsubscribe}}}}" style="color: #667eea; text-decoration: none;">Unsubscribe</a> | 
+                                                <a href="{{{{unsubscribe_preferences}}}}" style="color: #667eea; text-decoration: none;">Email Preferences</a>
                                             </p>
                                         </td>
                                     </tr>
@@ -158,6 +165,9 @@ class EmailService:
             ---
             This email was sent because your business card was scanned into our system.
             © {datetime.now().year} {self.from_name}. All rights reserved.
+            
+            To unsubscribe, visit: {{{{unsubscribe}}}}
+            Manage email preferences: {{{{unsubscribe_preferences}}}}
             """
             
             # Create message
@@ -168,6 +178,25 @@ class EmailService:
                 plain_text_content=Content("text/plain", plain_text),
                 html_content=Content("text/html", html_content)
             )
+            
+            # Add reply-to for better deliverability
+            if self.reply_to_email and self.reply_to_email != self.from_email:
+                message.reply_to = ReplyTo(self.reply_to_email)
+            
+            # Add unsubscribe group if configured
+            if self.unsubscribe_group_id:
+                message.asm = Asm(GroupId(int(self.unsubscribe_group_id)))
+            
+            # Add tracking settings for better engagement metrics
+            message.tracking_settings = {
+                "click_tracking": {"enable": True, "enable_text": False},
+                "open_tracking": {"enable": True},
+                "subscription_tracking": {
+                    "enable": True,
+                    "text": "If you would like to unsubscribe and stop receiving these emails click here: <% unsubscribe %>.",
+                    "html": "<p>If you would like to unsubscribe and stop receiving these emails <% click here %>.</p>"
+                }
+            }
             
             # Send email
             response = self.client.send(message)
@@ -280,6 +309,14 @@ class EmailService:
                 plain_text_content=Content("text/plain", plain_text),
                 html_content=Content("text/html", html_content)
             )
+            
+            # Add reply-to
+            if self.reply_to_email and self.reply_to_email != self.from_email:
+                message.reply_to = ReplyTo(self.reply_to_email)
+            
+            # Add unsubscribe group if configured
+            if self.unsubscribe_group_id:
+                message.asm = Asm(GroupId(int(self.unsubscribe_group_id)))
             
             response = self.client.send(message)
             logger.info(f"Custom email sent to {to_email}: Status {response.status_code}")
