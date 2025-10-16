@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form, File, UploadFile, Request, HTTPException, Depends, status, Query
+from fastapi import FastAPI, Form, File, UploadFile, Request, HTTPException, Depends, status, Query, Header
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -34,6 +34,8 @@ from ocr import (
 from webscraper import TavilyWebScraper, create_scraper
 from chatbot import GeminiChatbot, create_chatbot
 from email_service import EmailService, create_email_service
+from webhook_handler import SendGridWebhookHandler, create_webhook_handler
+from followup_scheduler import FollowUpEmailScheduler, create_followup_scheduler
 
 from contextlib import asynccontextmanager
 
@@ -65,13 +67,15 @@ logger = logging.getLogger(__name__)
 web_scraper: Optional[TavilyWebScraper] = None
 ai_chatbot: Optional[GeminiChatbot] = None
 email_service: Optional[EmailService] = None
+webhook_handler: Optional[SendGridWebhookHandler] = None
+followup_scheduler: Optional[FollowUpEmailScheduler] = None
 
 # Session storage for profiles
 user_sessions: Dict[str, Dict] = {}
 
 def initialize_services():
-    """Initialize web scraper, chatbot, and email services"""
-    global web_scraper, ai_chatbot, email_service
+    """Initialize web scraper, chatbot, email services, webhook handler, and follow-up scheduler"""
+    global web_scraper, ai_chatbot, email_service, webhook_handler, followup_scheduler
     
     # Initialize web scraper
     tavily_api_key = os.getenv("TAVILY_API_KEY")
@@ -115,7 +119,8 @@ def initialize_services():
     
     if sendgrid_api_key and sendgrid_api_key != "your-sendgrid-api-key-here":
         try:
-            email_service = create_email_service(sendgrid_api_key)
+            from ocr import supabase  # Import supabase for email tracking
+            email_service = create_email_service(sendgrid_api_key, supabase_client=supabase)
             logger.info("✅ SendGrid email service initialized successfully")
         except Exception as email_error:
             logger.error(f"❌ Failed to initialize SendGrid: {email_error}")
@@ -125,6 +130,30 @@ def initialize_services():
     else:
         logger.warning("⚠️ SendGrid API key not valid - email service disabled")
         email_service = None
+
+    # Initialize webhook handler (needs Supabase)
+    try:
+        from ocr import supabase  # Import supabase from ocr module
+        webhook_handler = create_webhook_handler(supabase)
+        logger.info("✅ SendGrid webhook handler initialized successfully")
+    except Exception as webhook_error:
+        logger.error(f"❌ Failed to initialize webhook handler: {webhook_error}")
+        webhook_handler = None
+
+    # Initialize follow-up scheduler (needs email service and supabase)
+    if email_service:
+        try:
+            from ocr import supabase  # Import supabase from ocr module
+            followup_scheduler = create_followup_scheduler(email_service, supabase)
+            # Start the scheduler with 2-minute threshold
+            followup_scheduler.start_scheduler()
+            logger.info("✅ Follow-up email scheduler initialized and started")
+        except Exception as scheduler_error:
+            logger.error(f"❌ Failed to initialize follow-up scheduler: {scheduler_error}")
+            followup_scheduler = None
+    else:
+        logger.warning("⚠️ Email service not available - follow-up scheduler disabled")
+        followup_scheduler = None
 
 # Pydantic models
 class UserInfoRequest(BaseModel):
@@ -552,11 +581,14 @@ async def save_card(
                 email_result = email_service.send_welcome_email(
                     email.strip(), 
                     name.strip(), 
-                    company.strip() if company.strip() else None
+                    company.strip() if company.strip() else None,
+                    business_card_id=card_id
                 )
                 email_sent = email_result["success"]
                 if email_sent:
                     logger.info(f"📧 Welcome email sent to {email}")
+                    if email_result.get("tracking_created"):
+                        logger.info(f"📊 Email tracking record created for follow-up")
                 else:
                     logger.warning(f"⚠️ Failed to send email: {email_result['message']}")
             except Exception as e:
@@ -692,11 +724,14 @@ async def save_all(
                 email_result = email_service.send_welcome_email(
                     email.strip(), 
                     name.strip(), 
-                    company.strip() if company.strip() else None
+                    company.strip() if company.strip() else None,
+                    business_card_id=card_id
                 )
                 email_sent = email_result["success"]
                 if email_sent:
                     logger.info(f"✅ Welcome email sent to {email}")
+                    if email_result.get("tracking_created"):
+                        logger.info(f"📊 Email tracking record created for follow-up")
                 else:
                     logger.warning(f"⚠️ Failed to send email: {email_result['message']}")
             except Exception as e:
@@ -778,6 +813,53 @@ async def send_bulk_emails(api_key: str = Depends(verify_api_key)):
         logger.error(f"Bulk email error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# SendGrid Webhook Endpoint
+@app.post("/webhook/sendgrid", tags=["Webhooks"])
+async def sendgrid_webhook(
+    request: Request,
+    x_twilio_email_event_webhook_signature: str = Header(None),
+    x_twilio_email_event_webhook_timestamp: str = Header(None)
+):
+    """
+    Handle SendGrid webhook events for email tracking
+    """
+    try:
+        if not webhook_handler:
+            raise HTTPException(status_code=503, detail="Webhook handler not available")
+        
+        # Get raw request body
+        body = await request.body()
+        
+        # Verify webhook signature (optional but recommended)
+        if x_twilio_email_event_webhook_signature and x_twilio_email_event_webhook_timestamp:
+            signature_valid = webhook_handler.verify_webhook_signature(
+                body, x_twilio_email_event_webhook_signature, x_twilio_email_event_webhook_timestamp
+            )
+            if not signature_valid:
+                logger.warning("⚠️ Invalid webhook signature")
+                # Continue processing anyway for development
+        
+        # Parse webhook events
+        events = webhook_handler.parse_webhook_events(body)
+        
+        # Process each event
+        results = []
+        for event in events:
+            result = await webhook_handler.process_webhook_event(event)
+            results.append(result)
+        
+        return {
+            "success": True,
+            "processed_events": len(events),
+            "results": results
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Webhook processing error: {e}")
+        import traceback
+        logger.error(f"❌ Webhook error traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Health check
 @app.get("/api/health", tags=["API"])
 async def health_check():
@@ -791,9 +873,15 @@ async def health_check():
             "web_scraper": web_scraper is not None,
             "ai_chatbot": ai_chatbot is not None,
             "email_service": email_service is not None,
+            "webhook_handler": webhook_handler is not None,
+            "followup_scheduler": followup_scheduler is not None,
             "supabase": supabase is not None
         },
-        "version": "2.0.0"
+        "email_tracking": {
+            "enabled": email_service is not None and webhook_handler is not None,
+            "scheduler_running": followup_scheduler is not None and getattr(followup_scheduler, 'is_running', False)
+        },
+        "version": "2.1.0"
     }
 
 if __name__ == "__main__":
