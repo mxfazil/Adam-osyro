@@ -10,9 +10,8 @@ python-dotenv==1.0.0
 
 # AI services
 google-generativeai==0.7.0
-tavily-python==0.4.0
 
-# Networking
+# Networking (requests handles Tavily API directly)
 httpx==0.24.1
 aiofiles==23.2.1
 

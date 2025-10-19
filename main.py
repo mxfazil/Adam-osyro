@@ -32,7 +32,7 @@ from ocr import (
 )
 
 # Import enhanced modules
-from webscraper import TavilyWebScraper, create_scraper
+from tavily_direct import TavilyDirect, create_scraper
 from chatbot import GeminiChatbot, create_chatbot
 from email_service import EmailService, create_email_service
 from webhook_handler import SendGridWebhookHandler, create_webhook_handler
@@ -65,7 +65,7 @@ templates = Jinja2Templates(directory="templates")
 logger = logging.getLogger(__name__)
 
 # Global instances
-web_scraper: Optional[TavilyWebScraper] = None
+web_scraper: Optional[TavilyDirect] = None
 ai_chatbot: Optional[GeminiChatbot] = None
 email_service: Optional[EmailService] = None
 webhook_handler: Optional[SendGridWebhookHandler] = None
@@ -184,7 +184,7 @@ async def home(request: Request):
 @app.post("/scrape-info", tags=["Web Interface"])
 async def scrape_info(request: ScrapeRequest):
     """
-    Scrape web information for a person and company
+    Scrape web information for a person and company using TavilyDirect
     """
     try:
         if not web_scraper:
@@ -194,12 +194,26 @@ async def scrape_info(request: ScrapeRequest):
             raise HTTPException(status_code=400, detail="Name is required")
         
         logger.info(f"🔍 Scraping information for {request.name}")
-        
-        # Use the quick user summary method
-        web_info = web_scraper.quick_user_summary(
-            request.name, 
-            request.company if request.company else None
-        )
+
+        # The TavilyDirect client uses requests (blocking). Run it in a thread
+        # to avoid blocking the FastAPI event loop and to surface errors cleanly.
+        try:
+            web_info = await asyncio.to_thread(
+                web_scraper.scrape_company_info,
+                request.name,
+                request.company if request.company else None
+            )
+        except Exception as ex:
+            import traceback
+            tb = traceback.format_exc()
+            logger.error(f"❌ Tavily scraping call failed: {ex}\n{tb}")
+            # Return useful debug info (without leaking secrets)
+            return JSONResponse({
+                "success": False,
+                "message": "Tavily scraping failed",
+                "error": str(ex),
+                "trace": tb.splitlines()[-3:]
+            }, status_code=500)
         
         return JSONResponse({
             "success": True,
@@ -208,11 +222,35 @@ async def scrape_info(request: ScrapeRequest):
         })
         
     except Exception as e:
-        logger.error(f"❌ Web scraping error: {e}")
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(f"❌ Web scraping error: {e}\n{tb}")
         return JSONResponse({
             "success": False,
-            "message": f"Failed to gather web information: {str(e)}"
+            "message": f"Failed to gather web information: {str(e)}",
+            "trace": tb.splitlines()[-3:]
         }, status_code=500)
+
+
+@app.get("/debug/tavily-search", tags=["Debug"])
+async def debug_tavily_search(q: str = "OpenAI", max_results: int = 2):
+    """Debug endpoint to directly call TavilyDirect (bypasses Pydantic model parsing).
+
+    Use this to quickly verify the Tavily client is reachable and the API key works.
+    """
+    try:
+        if not web_scraper:
+            raise HTTPException(status_code=503, detail="Web scraper not available")
+
+        # Run the blocking request in a thread
+        result = await asyncio.to_thread(web_scraper.search, q, max_results)
+
+        return JSONResponse({"success": True, "query": q, "results_count": len(result.get('results', [])), "result": result})
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(f"❌ Debug Tavily search failed: {e}\n{tb}")
+        return JSONResponse({"success": False, "message": str(e), "trace": tb.splitlines()[-3:]}, status_code=500)
 
 # Process user information and redirect to chat
 @app.post("/process-info", tags=["Web Interface"])
@@ -476,6 +514,43 @@ async def chat_interface(request: Request, session_id: str):
         "session_id": session_id,
         "session_data": session_data
     })
+
+# Chat test endpoint
+@app.get("/api/chat/test", tags=["API"])
+async def test_chat():
+    """
+    Test endpoint to verify chat service is working
+    """
+    try:
+        if not ai_chatbot:
+            return {
+                "status": "error",
+                "message": "AI chatbot not initialized",
+                "gemini_api_key_configured": bool(os.getenv('GEMINI_API_KEY'))
+            }
+        
+        # Test chat generation
+        test_response = ai_chatbot.generate_response(
+            "test-session",
+            "Say 'Hello! Chat is working perfectly!'",
+            {}
+        )
+        
+        return {
+            "status": "success",
+            "message": "Chat service is operational",
+            "test_response": test_response.get("response", "No response"),
+            "model": ai_chatbot.model_name if hasattr(ai_chatbot, 'model_name') else "unknown"
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Chat test error: {str(e)}")
+        return {
+            "status": "error",
+            "message": "Chat test failed",
+            "error": str(e),
+            "gemini_api_key_configured": bool(os.getenv('GEMINI_API_KEY'))
+        }
 
 # Chat API endpoint
 @app.post("/api/chat", tags=["API"])

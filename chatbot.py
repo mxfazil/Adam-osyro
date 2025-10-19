@@ -38,13 +38,13 @@ class GeminiChatbot:
     Acts as an intelligent agent for answering questions and providing assistance
     """
     
-    def __init__(self, api_key: str, model: str = "gemini-2.5-pro"):
+    def __init__(self, api_key: str, model: str = "gemini-1.5-flash"):
         """
         Initialize Gemini chatbot
         
         Args:
             api_key: Google Gemini API key
-            model: Gemini model to use
+            model: Gemini model to use (updated for v0.7.0)
         """
         self.api_key = api_key.strip()  # Remove any whitespace
         self.model_name = model
