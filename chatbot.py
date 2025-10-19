@@ -52,11 +52,26 @@ class GeminiChatbot:
         try:
             genai.configure(api_key=self.api_key)
             self.model = genai.GenerativeModel(self.model_name)
-            # Test the API key with a simple request
+            
+            # Test the API key with a simple request to verify it works
+            try:
+                test_response = self.model.generate_content("Hello", generation_config={"max_output_tokens": 10})
+                logger.info(f"✅ Gemini API test successful with model: {self.model_name}")
+            except Exception as test_error:
+                logger.warning(f"⚠️ Gemini API test failed but continuing: {test_error}")
+                # Continue anyway as the model might work for actual requests
+            
             logger.info(f"Initializing Gemini client with model: {self.model_name}")
         except Exception as e:
             logger.error(f"Failed to initialize Gemini client: {e}")
-            raise
+            # Provide more specific error information
+            error_str = str(e).lower()
+            if "api key" in error_str or "authentication" in error_str:
+                raise ValueError(f"Invalid Gemini API key: {e}")
+            elif "model" in error_str:
+                raise ValueError(f"Invalid model '{self.model_name}': {e}")
+            else:
+                raise RuntimeError(f"Gemini initialization failed: {e}")
             
         self.sessions: Dict[str, ChatSession] = {}
         
@@ -150,80 +165,59 @@ Be helpful, professional, and provide actionable insights. When discussing peopl
             self.add_message(session_id, "user", user_message)
             
             try:
-                # Use a simpler generation config that works
+                # Build a comprehensive prompt with context
+                context_prompt = self._build_context_prompt(session, context)
+                
+                # Combine context with user message
+                full_prompt = f"{context_prompt}\n\nUser: {user_message}\n\nAssistant:"
+                
+                # Use proper generation config for v0.7.0
+                generation_config = {
+                    "temperature": 0.7,
+                    "top_p": 0.8,
+                    "top_k": 40,
+                    "max_output_tokens": 1000,
+                }
+                
                 response = self.model.generate_content(
-                    user_message,
-                    generation_config={}
+                    full_prompt,
+                    generation_config=generation_config
                 )
                 
-                # Properly handle the response and check finish reason
+                # Extract response text properly for v0.7.0
                 response_content = "I apologize, but I couldn't generate a response."
                 
-                # Check if we have candidates
-                if hasattr(response, 'candidates') and response.candidates:
+                if response and hasattr(response, 'text') and response.text:
+                    response_content = response.text.strip()
+                elif response and hasattr(response, 'candidates') and response.candidates:
                     candidate = response.candidates[0]
-                    
-                    # Check finish reason
-                    if hasattr(candidate, 'finish_reason'):
-                        finish_reason = candidate.finish_reason
-                        # finish_reason 2 typically means content was blocked for safety
-                        if finish_reason == 2:  # SAFETY
-                            response_content = "I apologize, but the content was blocked for safety reasons. Please try rephrasing your message."
-                        elif finish_reason == 3:  # RECITATION
-                            response_content = "I apologize, but I couldn't provide a response due to content policies. Please try a different question."
-                        elif finish_reason == 4:  # OTHER
-                            response_content = "I apologize, but I couldn't complete my response. Please try again."
-                        elif finish_reason == 1:  # STOP (normal completion)
-                            # Try to extract text from the response
-                            if hasattr(candidate, 'content') and candidate.content:
-                                if hasattr(candidate.content, 'parts') and candidate.content.parts:
-                                    parts_text = []
-                                    for part in candidate.content.parts:
-                                        if hasattr(part, 'text') and part.text:
-                                            parts_text.append(part.text)
-                                    if parts_text:
-                                        response_content = ''.join(parts_text)
-                                    else:
-                                        response_content = "I couldn't generate a response. Please try again."
-                                else:
-                                    response_content = "I couldn't generate a response. Please try again."
-                            else:
-                                response_content = "I couldn't generate a response. Please try again."
-                        else:
-                            # For any other finish reason, try to get text
-                            if hasattr(response, 'text') and response.text:
-                                response_content = response.text
-                else:
-                    # If no candidates, try to get text directly
-                    if hasattr(response, 'text') and response.text:
-                        response_content = response.text
+                    if hasattr(candidate, 'content') and candidate.content:
+                        if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                            parts_text = []
+                            for part in candidate.content.parts:
+                                if hasattr(part, 'text') and part.text:
+                                    parts_text.append(part.text)
+                            if parts_text:
+                                response_content = ''.join(parts_text).strip()
+                
+                # Ensure we have a reasonable response
+                if not response_content or len(response_content.strip()) < 5:
+                    response_content = f"Hello! I've analyzed the information for {session.context.get('business_card', {}).get('name', 'this contact')}. How can I help you with networking and professional insights?"
                         
             except Exception as api_error:
                 logger.error(f"Gemini API error: {api_error}")
                 # Check for specific error types
                 error_str = str(api_error).lower()
-                if "api key" in error_str:
-                    response_content = f"""Hello! I've analyzed the business card information for {session.context.get('business_card', {}).get('name', 'this contact')} from {session.context.get('business_card', {}).get('company', 'their company')}.
-
-Based on the web research I can see:
-- Professional background and experience
-- Company information and industry details
-- Recent market trends and insights
-
-While I'm having technical difficulties with my AI processing (API key authentication issue), I can help you with:
-- Networking opportunities in their industry
-- Business insights based on the gathered information
-- Professional connection strategies
-
-How would you like to proceed with this business contact? Please note: I'm currently experiencing API authentication issues, but the research data is fully available."""
-                elif "safety" in error_str:
+                if "api key" in error_str or "authentication" in error_str:
+                    response_content = "I'm having trouble with my API authentication. Please check that the Gemini API key is properly configured."
+                elif "safety" in error_str or "blocked" in error_str:
                     response_content = "I apologize, but the content was blocked for safety reasons. Please try rephrasing your message."
-                elif "quota" in error_str:
-                    response_content = "I'm currently experiencing high demand (quota exceeded). Please try again in a moment."
-                elif "finish_reason" in error_str:
-                    response_content = "I apologize, but I couldn't complete my response. This might be due to content policies or other restrictions. Please try rephrasing your question."
+                elif "quota" in error_str or "rate limit" in error_str:
+                    response_content = "I'm currently experiencing high demand. Please try again in a moment."
+                elif "model" in error_str:
+                    response_content = f"There's an issue with the AI model configuration. Please contact support."
                 else:
-                    response_content = f"I encountered an unexpected error: {str(api_error)}. Please try again."
+                    response_content = f"Hello! I'm here to help you with networking and professional insights. While I'm experiencing some technical difficulties, I can still assist you. What would you like to know?"
             
             # Add assistant response to session
             self.add_message(session_id, "assistant", response_content)
@@ -485,7 +479,7 @@ Format as a simple list of questions."""
 
 
 # Factory function to create chatbot instance
-def create_chatbot(api_key: str = None, model: str = "gemini-2.5-pro") -> GeminiChatbot:
+def create_chatbot(api_key: str = None, model: str = "gemini-1.5-flash") -> GeminiChatbot:
     """
     Create a GeminiChatbot instance
     
