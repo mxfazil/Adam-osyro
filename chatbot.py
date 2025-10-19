@@ -231,8 +231,8 @@ Please provide a helpful, professional response:"""
                 
                 # Fallback if no content extracted
                 if not response_content or len(response_content.strip()) < 3:
-                    response_content = "Thank you for your message! I'm here to help with business networking and professional insights. How can I assist you today?"
-                    logger.warning(f"Using fallback response for session {session_id}")
+                    response_content = self._generate_smart_response(user_message)
+                    logger.warning(f"Using smart fallback response for session {session_id}")
                 
                 logger.info(f"Final response length: {len(response_content)} characters")
                         
@@ -271,8 +271,12 @@ Please provide a helpful, professional response:"""
             logger.error(f"Error generating response: {e}")
             logger.error(f"Error type: {type(e).__name__}")
             logger.error(f"Error details: {str(e)}")
+            
+            # Generate smart fallback response
+            smart_response = self._generate_smart_response(user_message)
+            
             return {
-                "response": "Hello! I'm here to help with professional networking and business insights. What would you like to know?",
+                "response": smart_response,
                 "session_id": session_id,
                 "timestamp": datetime.now().isoformat(),
                 "success": True,
@@ -510,6 +514,56 @@ Format as a simple list of questions."""
                 "last_message": session.messages[-1].timestamp.isoformat() if session.messages else None
             })
         return sessions_summary
+
+    def _generate_smart_response(self, user_message: str) -> str:
+        """
+        Generate a contextually appropriate response based on user input
+        
+        Args:
+            user_message: The user's message
+            
+        Returns:
+            A smart, contextual response
+        """
+        user_msg_lower = user_message.lower().strip()
+        
+        # Greeting responses
+        greetings = ["hello", "hi", "hey", "good morning", "good afternoon", "good evening"]
+        if any(greeting in user_msg_lower for greeting in greetings):
+            return "Hello! Great to connect with you! I'm here to help you with professional networking and business insights. What would you like to explore today?"
+        
+        # How are you responses
+        if any(phrase in user_msg_lower for phrase in ["how are you", "how's it going", "how do you do"]):
+            return "I'm doing well, thank you for asking! I'm excited to help you with networking and professional development. What brings you here today?"
+        
+        # Question about location/geography
+        if any(word in user_msg_lower for word in ["capital", "city", "country", "location", "where"]):
+            if "india" in user_msg_lower:
+                return "The capital of India is New Delhi! Speaking of locations, understanding geographical markets can be crucial for business networking. Are you exploring opportunities in India or other markets?"
+            return "That's an interesting question! While I can help with basic information, my specialty is professional networking and business insights. How can I assist you with your career or business development?"
+        
+        # Business/networking related
+        if any(word in user_msg_lower for word in ["business", "network", "career", "job", "work", "company", "professional"]):
+            return "Excellent! Business networking is my specialty. Whether you're looking to expand your professional network, explore career opportunities, or grow your business connections, I'm here to help. What specific aspect interests you?"
+        
+        # Technology related
+        if any(word in user_msg_lower for word in ["technology", "tech", "software", "development", "programming", "code"]):
+            return "Technology is a fantastic field for networking! The tech industry offers numerous opportunities for professional connections. Are you looking to connect with other professionals in tech, or do you need advice on building your presence in the technology sector?"
+        
+        # General questions
+        if "?" in user_message:
+            return "That's a great question! I'm here to help you with professional networking and business insights. Could you share more about what you're looking to achieve in your career or business development?"
+        
+        # Default response with some personality
+        responses = [
+            "I appreciate you reaching out! My expertise is in professional networking and business development. What career or business goals can I help you work toward?",
+            "Thanks for connecting! I specialize in helping professionals build meaningful business relationships. What networking challenges are you facing?",
+            "Great to chat with you! I'm focused on professional networking and business insights. How can I support your career or business growth today?",
+            "I'm here to help with all things professional networking! Whether it's expanding your connections, career development, or business growth, what would you like to explore?"
+        ]
+        
+        import random
+        return random.choice(responses)
 
 
 # Factory function to create chatbot instance
