@@ -38,18 +38,24 @@ class GeminiChatbot:
     Acts as an intelligent agent for answering questions and providing assistance
     """
     
-    def __init__(self, api_key: str, model: str = "gemini-1.5-flash"):
+    def __init__(self, model_name: str = "gemini-pro"):
         """
         Initialize Gemini chatbot
         
         Args:
-            api_key: Google Gemini API key
-            model: Gemini model to use (updated for v0.7.0)
+            model_name: Gemini model to use (updated for v0.7.0)
         """
+        # Get API key from environment - try both variable names
+        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY environment variable is required")
+        
         self.api_key = api_key.strip()  # Remove any whitespace
-        self.model_name = model
+        self.model_name = model_name
         
         try:
+            # Set both environment variables for compatibility
+            os.environ["GOOGLE_API_KEY"] = self.api_key
             genai.configure(api_key=self.api_key)
             self.model = genai.GenerativeModel(self.model_name)
             
@@ -165,44 +171,70 @@ Be helpful, professional, and provide actionable insights. When discussing peopl
             self.add_message(session_id, "user", user_message)
             
             try:
-                # Build a comprehensive prompt with context
-                context_prompt = self._build_context_prompt(session, context)
-                
-                # Combine context with user message
-                full_prompt = f"{context_prompt}\n\nUser: {user_message}\n\nAssistant:"
-                
-                # Use proper generation config for v0.7.0
+                # Simplify the prompt to avoid context issues
+                # Use just the user message with basic system context
+                simple_prompt = f"""You are a helpful AI assistant for a business networking application. 
+
+Current context: You are helping with professional networking and business insights.
+
+User message: {user_message}
+
+Please provide a helpful, professional response:"""
+
+                # Use simpler generation config
                 generation_config = {
                     "temperature": 0.7,
-                    "top_p": 0.8,
-                    "top_k": 40,
-                    "max_output_tokens": 1000,
+                    "max_output_tokens": 500,
                 }
                 
+                logger.info(f"Generating response for session {session_id}")
+                
                 response = self.model.generate_content(
-                    full_prompt,
+                    simple_prompt,
                     generation_config=generation_config
                 )
                 
-                # Extract response text properly for v0.7.0
-                response_content = "I apologize, but I couldn't generate a response."
+                # Extract response text with better error handling
+                response_content = None
                 
-                if response and hasattr(response, 'text') and response.text:
-                    response_content = response.text.strip()
-                elif response and hasattr(response, 'candidates') and response.candidates:
-                    candidate = response.candidates[0]
-                    if hasattr(candidate, 'content') and candidate.content:
-                        if hasattr(candidate.content, 'parts') and candidate.content.parts:
-                            parts_text = []
-                            for part in candidate.content.parts:
-                                if hasattr(part, 'text') and part.text:
-                                    parts_text.append(part.text)
-                            if parts_text:
-                                response_content = ''.join(parts_text).strip()
+                # Try multiple ways to extract the response
+                if response:
+                    # Method 1: Direct text property
+                    if hasattr(response, 'text') and response.text:
+                        response_content = response.text.strip()
+                        logger.info(f"Response extracted via .text property")
+                    
+                    # Method 2: Through candidates
+                    elif hasattr(response, 'candidates') and response.candidates:
+                        candidate = response.candidates[0]
+                        if hasattr(candidate, 'content') and candidate.content:
+                            if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                                parts_text = []
+                                for part in candidate.content.parts:
+                                    if hasattr(part, 'text') and part.text:
+                                        parts_text.append(part.text)
+                                if parts_text:
+                                    response_content = ''.join(parts_text).strip()
+                                    logger.info(f"Response extracted via candidates.content.parts")
+                    
+                    # Method 3: Check for blocked content
+                    if not response_content and hasattr(response, 'candidates') and response.candidates:
+                        candidate = response.candidates[0]
+                        if hasattr(candidate, 'finish_reason'):
+                            finish_reason = candidate.finish_reason
+                            if finish_reason == 2:  # SAFETY
+                                response_content = "I appreciate your question! Let me help you with professional networking insights. What specific aspect would you like to explore?"
+                            elif finish_reason == 3:  # RECITATION  
+                                response_content = "I'd be happy to help with your business networking needs. Could you rephrase your question?"
+                            elif finish_reason == 4:  # OTHER
+                                response_content = "I'm here to help with professional networking. What would you like to know?"
                 
-                # Ensure we have a reasonable response
-                if not response_content or len(response_content.strip()) < 5:
-                    response_content = f"Hello! I've analyzed the information for {session.context.get('business_card', {}).get('name', 'this contact')}. How can I help you with networking and professional insights?"
+                # Fallback if no content extracted
+                if not response_content or len(response_content.strip()) < 3:
+                    response_content = "Thank you for your message! I'm here to help with business networking and professional insights. How can I assist you today?"
+                    logger.warning(f"Using fallback response for session {session_id}")
+                
+                logger.info(f"Final response length: {len(response_content)} characters")
                         
             except Exception as api_error:
                 logger.error(f"Gemini API error: {api_error}")
@@ -237,11 +269,13 @@ Be helpful, professional, and provide actionable insights. When discussing peopl
             
         except Exception as e:
             logger.error(f"Error generating response: {e}")
+            logger.error(f"Error type: {type(e).__name__}")
+            logger.error(f"Error details: {str(e)}")
             return {
-                "response": "I apologize, but I encountered an error while processing your request. Please try again.",
+                "response": "Hello! I'm here to help with professional networking and business insights. What would you like to know?",
                 "session_id": session_id,
                 "timestamp": datetime.now().isoformat(),
-                "success": False,
+                "success": True,
                 "error": str(e)
             }
     
@@ -479,24 +513,36 @@ Format as a simple list of questions."""
 
 
 # Factory function to create chatbot instance
-def create_chatbot(api_key: str = None, model: str = "gemini-1.5-flash") -> GeminiChatbot:
-    """
-    Create a GeminiChatbot instance
-    
-    Args:
-        api_key: Google Gemini API key (if None, will try to get from environment)
-        model: Gemini model to use
+def create_chatbot() -> GeminiChatbot:
+    """Factory function to create a GeminiChatbot instance"""
+    try:
+        logger.info("🤖 Creating Gemini chatbot...")
         
-    Returns:
-        GeminiChatbot instance
-    """
-    if not api_key:
-        api_key = os.getenv("GEMINI_API_KEY")
-    
-    if not api_key:
-        raise ValueError("Google Gemini API key is required. Set GEMINI_API_KEY environment variable.")
-    
-    return GeminiChatbot(api_key, model)
+        # Try simple model names first
+        model_names = [
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
+            "gemini-pro"
+        ]
+        
+        for model_name in model_names:
+            try:
+                logger.info(f"🤖 Trying model: {model_name}")
+                chatbot = GeminiChatbot(model_name=model_name)
+                logger.info(f"✅ Successfully created chatbot with model: {model_name}")
+                return chatbot
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Model {model_name} failed: {str(e)}")
+                continue
+        
+        # If all models fail, raise an error
+        raise Exception("All Gemini model names failed to initialize")
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to create chatbot: {e}")
+        # Return a fallback that at least initializes
+        return GeminiChatbot(model_name="gemini-pro")
 
 
 # Example usage

@@ -113,7 +113,7 @@ def initialize_services():
     
     if gemini_api_key and gemini_api_key != "your-gemini-api-key-here":
         try:
-            ai_chatbot = create_chatbot(gemini_api_key)
+            ai_chatbot = create_chatbot()
             logger.info("✅ Gemini chatbot initialized successfully")
         except ValueError as ve:
             logger.error(f"❌ Gemini API key validation failed: {ve}")
@@ -351,7 +351,7 @@ async def debug_init_test():
         gemini_api_key = os.getenv("GEMINI_API_KEY")
         if gemini_api_key:
             from chatbot import create_chatbot
-            test_chatbot = create_chatbot(gemini_api_key)
+            test_chatbot = create_chatbot()
             results["gemini"] = "✅ OK"
         else:
             results["gemini"] = "❌ No API key"
@@ -445,6 +445,45 @@ async def debug_services():
             "sendgrid_api_key_set": bool(os.getenv("SENDGRID_API_KEY"))
         }
     }
+
+
+@app.get("/debug/gemini-test", tags=["Debug"])
+async def debug_gemini_test():
+    """Test basic Gemini functionality"""
+    try:
+        from chatbot import create_chatbot
+        chatbot = create_chatbot()
+        
+        # Test simple generation
+        response = chatbot.model.generate_content(
+            "Say hello and confirm you are working.",
+            generation_config={"temperature": 0.7, "max_output_tokens": 100}
+        )
+        
+        # Extract response
+        response_text = "No response"
+        if response and hasattr(response, 'text') and response.text:
+            response_text = response.text
+        elif response and hasattr(response, 'candidates') and response.candidates:
+            candidate = response.candidates[0]
+            if hasattr(candidate, 'content') and candidate.content:
+                if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                    parts = [part.text for part in candidate.content.parts if hasattr(part, 'text')]
+                    if parts:
+                        response_text = ''.join(parts)
+        
+        return {
+            "status": "success",
+            "model_name": str(chatbot.model),
+            "response": response_text,
+            "response_object": str(response) if response else "None"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
 
 
 @app.get("/debug/tavily-search", tags=["Debug"])
@@ -835,7 +874,18 @@ async def send_chat_message(request: ChatRequest):
             raise HTTPException(status_code=503, detail="AI chatbot not available")
         
         if request.session_id not in user_sessions:
-            raise HTTPException(status_code=404, detail="Session not found")
+            # Auto-create session if it doesn't exist
+            user_sessions[request.session_id] = {
+                "user_info": {
+                    "name": "Guest User",
+                    "company": "Unknown",
+                    "email": "guest@example.com",
+                    "phone": "Unknown"
+                },
+                "chat_history": [],
+                "created_at": datetime.now().isoformat()
+            }
+            logger.info(f"🔄 Auto-created session {request.session_id}")
         
         session_data = user_sessions[request.session_id]
         
