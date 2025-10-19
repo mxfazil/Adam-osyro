@@ -18,4 +18,3 @@ aiofiles==23.2.1
 
 # Email service
 sendgrid==6.12.5
-tiktoken==0.3.3
