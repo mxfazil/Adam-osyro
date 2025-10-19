@@ -1,4 +1,4 @@
-# Enhanced requirements with new dependencies
+# Core FastAPI dependencies
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
@@ -8,16 +8,16 @@ requests==2.31.0
 jinja2==3.1.2
 python-dotenv==1.0.0
 
-# New dependencies for enhanced features
-google-generativeai==0.7.0
+# AI services - use versions that don't require tiktoken
+google-generativeai==0.3.2
 tavily-python==0.2.9
 
-# Compatible versions to avoid conflicts
+# Compatible versions
 httpx>=0.24.0,<0.25.0
 aiofiles==23.2.1
 
 # Email service
 sendgrid==6.12.5
 
-# Force compatible tiktoken version with prebuilt wheels
-tiktoken>=0.4.0,<0.6.0
+# Scheduler
+schedule==1.2.0
