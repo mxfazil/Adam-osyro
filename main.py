@@ -105,6 +105,12 @@ def initialize_services():
         try:
             ai_chatbot = create_chatbot(gemini_api_key)
             logger.info("✅ Gemini chatbot initialized successfully")
+        except ValueError as ve:
+            logger.error(f"❌ Gemini API key validation failed: {ve}")
+            ai_chatbot = None
+        except RuntimeError as re:
+            logger.error(f"❌ Gemini runtime error: {re}")
+            ai_chatbot = None
         except Exception as chatbot_error:
             logger.error(f"❌ Failed to initialize Gemini chatbot: {chatbot_error}")
             import traceback
@@ -272,6 +278,35 @@ async def scrape_info(request: ScrapeRequest):
             },
             "message": "Using emergency fallback information"
         })
+@app.get("/debug/services", tags=["Debug"])
+async def debug_services():
+    """Debug endpoint to check service initialization status"""
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
+    
+    return {
+        "web_scraper": {
+            "initialized": web_scraper is not None,
+            "type": type(web_scraper).__name__ if web_scraper else None
+        },
+        "ai_chatbot": {
+            "initialized": ai_chatbot is not None,
+            "type": type(ai_chatbot).__name__ if ai_chatbot else None,
+            "model_name": getattr(ai_chatbot, 'model_name', None) if ai_chatbot else None
+        },
+        "email_service": {
+            "initialized": email_service is not None,
+            "type": type(email_service).__name__ if email_service else None
+        },
+        "environment": {
+            "gemini_api_key_set": bool(gemini_api_key),
+            "gemini_key_length": len(gemini_api_key) if gemini_api_key else 0,
+            "gemini_key_prefix": gemini_api_key[:10] + "..." if gemini_api_key else None,
+            "tavily_api_key_set": bool(os.getenv("TAVILY_API_KEY")),
+            "sendgrid_api_key_set": bool(os.getenv("SENDGRID_API_KEY"))
+        }
+    }
+
+
 @app.get("/debug/tavily-search", tags=["Debug"])
 async def debug_tavily_search(q: str = "OpenAI", max_results: int = 2):
     """Debug endpoint to directly call TavilyDirect (bypasses Pydantic model parsing).
