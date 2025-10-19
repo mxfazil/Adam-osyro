@@ -7,6 +7,7 @@ import os
 import json
 import uuid
 import logging
+import asyncio
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
@@ -666,7 +667,7 @@ async def save_all(
     web_info: str = Form("")  # JSON string of web-scraped data
 ):
     """
-    Save both business card and web-scraped information to Supabase
+    Save both business card and web-scraped information to Supabase (OPTIMIZED)
     """
     try:
         if not supabase:
@@ -676,7 +677,7 @@ async def save_all(
         if not name.strip():
             raise HTTPException(status_code=400, detail="Name is required")
         
-        # Save business card
+        # Prepare business card data
         card_data = {
             "name": name.strip(),
             "email": email.strip(),
@@ -685,79 +686,101 @@ async def save_all(
         }
         
         logger.info(f"Saving business card to Supabase: {card_data}")
+        
+        # Save business card first (required for ID)
         card_result = supabase.table("business_cards").insert(card_data).execute()
         card_id = card_result.data[0]['id']
-        logger.info(f"Successfully saved business card with ID: {card_id}")
+        logger.info(f"✅ Business card saved with ID: {card_id}")
         
-        # Save web-scraped data if available
-        web_info_id = None
-        if web_info.strip():
-            try:
-                web_info_data = json.loads(web_info)
-                web_data = {
-                    "name": name.strip(),
-                    "company": company.strip(),
-                    "web_info": web_info_data,
-                    "created_at": datetime.now().isoformat()
-                }
-                
-                logger.info(f"Saving web info to Supabase for {name}")
-                logger.info(f"Web info data: {web_info_data}")
-                web_result = supabase.table("web_scraped_data").insert(web_data).execute()
-                web_info_id = web_result.data[0]['id']
-                logger.info(f"Successfully saved web info with ID: {web_info_id}")
-            except json.JSONDecodeError as e:
-                logger.error(f"Invalid JSON in web_info: {str(e)}")
-                # Continue without saving web info
-            except Exception as e:
-                logger.error(f"Error saving web info to Supabase: {e}")
-                logger.error(f"Error type: {type(e).__name__}")
-                import traceback
-                logger.error(f"Traceback: {traceback.format_exc()}")
-                # Continue without saving web info
+        # Immediately return success to user while processing continues in background
+        import asyncio
         
-        # Send welcome email if email service is available and email is provided
-        email_sent = False
+        # Start background tasks for web info and email (non-blocking)
+        asyncio.create_task(process_web_info_background(name, company, web_info, card_id))
         if email_service and email.strip():
-            try:
-                logger.info(f"📧 Attempting to send welcome email to {email.strip()}")
-                email_result = email_service.send_welcome_email(
-                    email.strip(), 
-                    name.strip(), 
-                    company.strip() if company.strip() else None,
-                    business_card_id=card_id
-                )
-                email_sent = email_result["success"]
-                if email_sent:
-                    logger.info(f"✅ Welcome email sent to {email}")
-                    if email_result.get("tracking_created"):
-                        logger.info(f"📊 Email tracking record created for follow-up")
-                else:
-                    logger.warning(f"⚠️ Failed to send email: {email_result['message']}")
-            except Exception as e:
-                logger.error(f"❌ Email sending error: {e}")
-                import traceback
-                logger.error(f"Traceback: {traceback.format_exc()}")
+            asyncio.create_task(send_welcome_email_background(email.strip(), name.strip(), company.strip(), card_id))
         
+        # Return immediately - much faster response!
         return JSONResponse({
             "success": True, 
-            "message": "All information saved successfully" + (" and welcome email sent" if email_sent else ""), 
+            "message": "Business card saved successfully! Web scraping and email processing in progress...", 
             "data": {
                 "card_id": card_id,
-                "web_info_id": web_info_id,
-                "email_sent": email_sent
+                "status": "processing"
             }
         })
         
     except HTTPException as http_error:
-        logger.error(f"HTTP error saving all information to Supabase: {http_error.detail}")
+        logger.error(f"HTTP error saving to Supabase: {http_error.detail}")
         raise
     except Exception as e:
-        logger.error(f"Error saving all information to Supabase: {e}")
-        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Error saving to Supabase: {e}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to save information: {str(e)}")
+
+
+# Background task for web info processing
+async def process_web_info_background(name: str, company: str, web_info: str, card_id: int):
+    """Process web info in background for faster response.
+
+    Use asyncio.to_thread to run blocking Supabase calls off the event loop.
+    """
+    if not web_info.strip():
+        return
+
+    try:
+        web_info_data = json.loads(web_info)
+        web_data = {
+            "name": name.strip(),
+            "company": company.strip(),
+            "web_info": web_info_data,
+            "created_at": datetime.now().isoformat()
+        }
+
+        logger.info(f"📊 Background: Saving web info for {name}")
+
+        # Run blocking Supabase insert in a thread
+        def _insert():
+            return supabase.table("web_scraped_data").insert(web_data).execute()
+
+        web_result = await asyncio.to_thread(_insert)
+        web_info_id = web_result.data[0]['id']
+        logger.info(f"✅ Background: Web info saved with ID: {web_info_id}")
+
+    except json.JSONDecodeError as e:
+        logger.error(f"❌ Background: Invalid JSON in web_info: {str(e)}")
+    except Exception as e:
+        logger.error(f"❌ Background: Error saving web info: {e}")
+
+
+# Background task for email sending
+async def send_welcome_email_background(email: str, name: str, company: str, card_id: int):
+    """Send welcome email in background for faster response"""
+    try:
+        logger.info(f"📧 Background: Sending welcome email to {email}")
+        # Run the blocking send_welcome_email in a thread to avoid blocking the event loop
+        def _send():
+            return email_service.send_welcome_email(
+                email,
+                name,
+                company if company else None,
+                business_card_id=card_id
+            )
+
+        email_result = await asyncio.to_thread(_send)
+        
+        if email_result["success"]:
+            logger.info(f"✅ Background: Welcome email sent to {email}")
+            if email_result.get("tracking_created"):
+                logger.info(f"📊 Background: Email tracking record created")
+        else:
+            logger.warning(f"⚠️ Background: Failed to send email: {email_result['message']}")
+            
+    except Exception as e:
+        logger.error(f"❌ Background: Email sending error: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
 
 # Get session data API
 @app.get("/api/session/{session_id}", tags=["API"])
@@ -769,6 +792,39 @@ async def get_session_data(session_id: str):
         raise HTTPException(status_code=404, detail="Session not found")
     
     return user_sessions[session_id]
+
+# Quick status endpoint to check background processing
+@app.get("/api/status/{card_id}", tags=["API"])
+async def get_processing_status(card_id: int):
+    """
+    Check if background processing is complete for a business card
+    """
+    try:
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database not available")
+        
+        # Check if web info exists for this card
+        web_info_result = supabase.table("web_scraped_data")\
+            .select("id")\
+            .eq("name", "")\
+            .execute()
+        
+        # Check if email tracking exists for this card  
+        email_result = supabase.table("email_tracking")\
+            .select("id, sent_at")\
+            .eq("business_card_id", card_id)\
+            .execute()
+        
+        return JSONResponse({
+            "card_id": card_id,
+            "web_info_processed": len(web_info_result.data) > 0,
+            "email_sent": len(email_result.data) > 0,
+            "status": "complete" if len(email_result.data) > 0 else "processing"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error checking status: {e}")
+        return JSONResponse({"status": "error", "message": str(e)})
 
 # Bulk email endpoint
 @app.post("/api/send-bulk-emails", tags=["API"])
