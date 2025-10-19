@@ -288,6 +288,40 @@ async def scrape_info(request: ScrapeRequest):
             },
             "message": "Using emergency fallback information"
         })
+@app.get("/debug/force-init", tags=["Debug"])
+async def debug_force_init():
+    """Force initialize services and check global variables"""
+    global web_scraper, ai_chatbot, email_service
+    
+    # Save current states
+    original_states = {
+        "web_scraper": web_scraper is not None,
+        "ai_chatbot": ai_chatbot is not None,
+        "email_service": email_service is not None
+    }
+    
+    # Force initialization
+    try:
+        initialize_services()
+        after_init_states = {
+            "web_scraper": web_scraper is not None,
+            "ai_chatbot": ai_chatbot is not None,
+            "email_service": email_service is not None
+        }
+        return {
+            "status": "completed",
+            "before_init": original_states,
+            "after_init": after_init_states,
+            "successful": after_init_states
+        }
+    except Exception as e:
+        return {
+            "status": "failed",
+            "error": str(e),
+            "before_init": original_states
+        }
+
+
 @app.get("/debug/init-test", tags=["Debug"])
 async def debug_init_test():
     """Test individual service initialization"""
