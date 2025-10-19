@@ -288,6 +288,54 @@ async def scrape_info(request: ScrapeRequest):
             },
             "message": "Using emergency fallback information"
         })
+@app.get("/debug/init-test", tags=["Debug"])
+async def debug_init_test():
+    """Test individual service initialization"""
+    results = {}
+    
+    # Test Tavily initialization
+    try:
+        tavily_api_key = os.getenv("TAVILY_API_KEY")
+        if tavily_api_key:
+            from tavily_direct import create_scraper
+            test_scraper = create_scraper(tavily_api_key)
+            results["tavily"] = "✅ OK"
+        else:
+            results["tavily"] = "❌ No API key"
+    except Exception as e:
+        results["tavily"] = f"❌ FAILED: {str(e)}"
+    
+    # Test Gemini initialization
+    try:
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if gemini_api_key:
+            from chatbot import create_chatbot
+            test_chatbot = create_chatbot(gemini_api_key)
+            results["gemini"] = "✅ OK"
+        else:
+            results["gemini"] = "❌ No API key"
+    except Exception as e:
+        results["gemini"] = f"❌ FAILED: {str(e)}"
+    
+    # Test Email initialization
+    try:
+        sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
+        if sendgrid_api_key:
+            from email_service import create_email_service
+            from ocr import supabase
+            test_email = create_email_service(sendgrid_api_key, supabase_client=supabase)
+            results["email"] = "✅ OK"
+        else:
+            results["email"] = "❌ No API key"
+    except Exception as e:
+        results["email"] = f"❌ FAILED: {str(e)}"
+    
+    return {
+        "individual_tests": results,
+        "note": "This tests each service independently"
+    }
+
+
 @app.get("/debug/imports", tags=["Debug"])
 async def debug_imports():
     """Debug endpoint to check if imports are working"""
