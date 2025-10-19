@@ -172,6 +172,13 @@ def initialize_services():
         logger.warning("⚠️ Email service not available - follow-up scheduler disabled")
         followup_scheduler = None
 
+# Initialize services on module load for Vercel compatibility
+try:
+    initialize_services()
+    logger.info("🔄 Services initialized on module load")
+except Exception as e:
+    logger.error(f"❌ Module-level initialization failed: {e}")
+
 # Pydantic models
 class UserInfoRequest(BaseModel):
     """Request model for user information"""
