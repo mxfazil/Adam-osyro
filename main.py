@@ -43,10 +43,20 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    initialize_services()
-    logger.info("🚀 Streamlined OCR Chat application started")
-    logger.info(f"🌐 Web Interface: http://127.0.0.1:8000/")
-    logger.info(f"📚 API Documentation: http://127.0.0.1:8000/docs")
+    logger.info("🚀 Starting application initialization...")
+    try:
+        initialize_services()
+        logger.info("🚀 Streamlined OCR Chat application started")
+        logger.info(f"🌐 Web Interface: http://127.0.0.1:8000/")
+        logger.info(f"📚 API Documentation: http://127.0.0.1:8000/docs")
+        
+        # Log service status
+        logger.info(f"Services initialized: web_scraper={web_scraper is not None}, ai_chatbot={ai_chatbot is not None}, email_service={email_service is not None}")
+    except Exception as init_error:
+        logger.error(f"❌ Initialization error: {init_error}")
+        import traceback
+        logger.error(f"❌ Initialization traceback: {traceback.format_exc()}")
+    
     yield
     # Shutdown
     logger.info("Application shutting down...")
@@ -278,6 +288,47 @@ async def scrape_info(request: ScrapeRequest):
             },
             "message": "Using emergency fallback information"
         })
+@app.get("/debug/imports", tags=["Debug"])
+async def debug_imports():
+    """Debug endpoint to check if imports are working"""
+    import_status = {}
+    
+    try:
+        from tavily_direct import TavilyDirect, create_scraper
+        import_status["tavily_direct"] = "✅ OK"
+    except Exception as e:
+        import_status["tavily_direct"] = f"❌ FAILED: {str(e)}"
+    
+    try:
+        from chatbot import GeminiChatbot, create_chatbot
+        import_status["chatbot"] = "✅ OK"
+    except Exception as e:
+        import_status["chatbot"] = f"❌ FAILED: {str(e)}"
+    
+    try:
+        from email_service import EmailService, create_email_service
+        import_status["email_service"] = "✅ OK"
+    except Exception as e:
+        import_status["email_service"] = f"❌ FAILED: {str(e)}"
+    
+    try:
+        import google.generativeai as genai
+        import_status["google_generativeai"] = "✅ OK"
+    except Exception as e:
+        import_status["google_generativeai"] = f"❌ FAILED: {str(e)}"
+    
+    try:
+        import requests
+        import_status["requests"] = "✅ OK"
+    except Exception as e:
+        import_status["requests"] = f"❌ FAILED: {str(e)}"
+    
+    return {
+        "import_status": import_status,
+        "initialization_called": "initialize_services should be called during app startup"
+    }
+
+
 @app.get("/debug/services", tags=["Debug"])
 async def debug_services():
     """Debug endpoint to check service initialization status"""
